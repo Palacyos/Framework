@@ -43,7 +43,7 @@ final readonly class Router
                 $controller = $this->container->make($class);
                 $controller->$action($params);
             } else {
-                throw new RuntimeException("Handler inválido: " . json_encode($h));
+                throw new RuntimeException("Controlador inválido: " . json_encode($h));
             }
 
             return;
