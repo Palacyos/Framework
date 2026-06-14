@@ -1,6 +1,6 @@
 # PHP Framework
 
-Framework MVC minimalista em PHP 8.2+ inspirado no fluxo do **ASP.NET Core** — Builder pattern, pipeline de middleware com `next()`, `IActionResult`, DI com lifetimes e binding automático de parâmetros de rota.
+Framework MVC minimalista em PHP 8.2+ — Builder pattern, pipeline de middleware com `next()`, `IActionResult`, DI com lifetimes e binding automático de parâmetros de rota.
 
 ## Stack
 
