@@ -5,7 +5,7 @@ namespace App\Middlewares;
 use App\Core\Auth;
 use App\Core\Results\RedirectResult;
 
-final class AuthMiddleware
+final readonly class AuthMiddleware
 {
     public function __construct(
         private array $allowedTypes = []
