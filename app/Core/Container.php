@@ -8,17 +8,26 @@ use RuntimeException;
 
 final class Container
 {
-    private array $bindings = [];
+    private array $singletons = [];
+    private array $scoped     = [];
+
+    public function __construct(private array $bindings = []) {}
 
     public function bind(string $abstract, Closure $factory): void
     {
-        $this->bindings[$abstract] = $factory;
+        $this->bindings[$abstract] = ['concrete' => $factory, 'lifetime' => 'transient'];
     }
 
     public function make(string $abstract): mixed
     {
         if (isset($this->bindings[$abstract])) {
-            return ($this->bindings[$abstract])($this);
+            ['concrete' => $concrete, 'lifetime' => $lifetime] = $this->bindings[$abstract];
+
+            return match ($lifetime) {
+                'singleton' => $this->resolveSingleton($abstract, $concrete),
+                'scoped'    => $this->resolveScoped($abstract, $concrete),
+                default     => $this->resolve($concrete),
+            };
         }
 
         if (class_exists($abstract)) {
@@ -26,6 +35,29 @@ final class Container
         }
 
         throw new RuntimeException("Não foi possível resolver: {$abstract}");
+    }
+
+    public function beginScope(): void
+    {
+        $this->scoped = [];
+    }
+
+    private function resolveSingleton(string $abstract, string|Closure $concrete): mixed
+    {
+        return $this->singletons[$abstract] ??= $this->resolve($concrete);
+    }
+
+    private function resolveScoped(string $abstract, string|Closure $concrete): mixed
+    {
+        return $this->scoped[$abstract] ??= $this->resolve($concrete);
+    }
+
+    private function resolve(string|Closure $concrete): mixed
+    {
+        if ($concrete instanceof Closure) {
+            return $concrete($this);
+        }
+        return $this->autowire($concrete);
     }
 
     private function autowire(string $class): mixed

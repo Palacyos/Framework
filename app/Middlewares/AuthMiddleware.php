@@ -3,6 +3,7 @@
 namespace App\Middlewares;
 
 use App\Core\Auth;
+use App\Core\Results\RedirectResult;
 
 final class AuthMiddleware
 {
@@ -10,16 +11,16 @@ final class AuthMiddleware
         private array $allowedTypes = []
     ) {}
 
-    public function handle(): void
+    public function handle(callable $next): void
     {
         if (!Auth::check()) {
-            header('Location: /login');
-            exit();
+            (new RedirectResult('/login'))->execute();
         }
 
         if (!empty($this->allowedTypes) && !in_array(Auth::type(), $this->allowedTypes)) {
-            header('Location: /?error=access_denied');
-            exit();
+            (new RedirectResult('/?error=access_denied'))->execute();
         }
+
+        $next();
     }
 }
