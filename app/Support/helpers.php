@@ -1,8 +1,12 @@
 <?php
 
 use App\Core\Csrf;
+use Random\RandomException;
 
 if (!function_exists('csrf_input')) {
+    /**
+     * @throws RandomException
+     */
     function csrf_input(): string
     {
         $token = Csrf::token();
