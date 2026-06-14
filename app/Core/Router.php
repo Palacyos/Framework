@@ -2,6 +2,10 @@
 
 namespace App\Core;
 
+use App\Core\Results\IActionResult;
+use App\Core\Results\NotFoundResult;
+use ReflectionFunction;
+use ReflectionMethod;
 use RuntimeException;
 
 final readonly class Router
@@ -16,46 +20,101 @@ final readonly class Router
         $method = $_SERVER['REQUEST_METHOD'];
         $path   = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
-        foreach ($this->routes as $r) {
-            [$m, $p, $h, $mw] = array_pad($r, 4, []);
-
-            if ($m !== $method) {
+        foreach ($this->routes as $route) {
+            if ($route['method'] !== $method) {
                 continue;
             }
 
-            $params = $this->match($p, $path);
+            $params = $this->match($route['path'], $path);
 
             if ($params === null) {
                 continue;
             }
 
-            foreach ($mw as $middleware) {
-                $instance = is_string($middleware)
-                    ? $this->container->make($middleware)
-                    : $middleware;
-                $instance->handle();
-            }
-
-            if (is_callable($h)) {
-                $h($params);
-            } elseif (is_array($h) && count($h) === 2) {
-                [$class, $action] = $h;
-                $controller = $this->container->make($class);
-                $controller->$action($params);
-            } else {
-                throw new RuntimeException("Invalid handle: " . json_encode($h));
-            }
-
+            $this->runPipeline($route['middleware'], $route['handler'], $params);
             return;
         }
 
-        http_response_code(404);
-        echo '404';
+        (new NotFoundResult())->execute();
+    }
+
+    private function runPipeline(array $middleware, array|callable $handler, array $routeParams): void
+    {
+        $final = function () use ($handler, $routeParams): void {
+            $result = $this->invokeHandler($handler, $routeParams);
+            if ($result instanceof IActionResult) {
+                $result->execute();
+            }
+        };
+
+        $chain = array_reduce(
+            array_reverse($middleware),
+            function (callable $next, string|object $mw) {
+                return function () use ($next, $mw): void {
+                    $instance = is_string($mw) ? $this->container->make($mw) : $mw;
+                    $instance->handle($next);
+                };
+            },
+            $final
+        );
+
+        $chain();
+    }
+
+    private function invokeHandler(array|callable $handler, array $routeParams): mixed
+    {
+        if (is_callable($handler) && !is_array($handler)) {
+            $ref  = new ReflectionFunction(\Closure::fromCallable($handler));
+            $args = $this->bindParams($ref->getParameters(), $routeParams);
+            return $handler(...$args);
+        }
+
+        if (is_array($handler) && count($handler) === 2) {
+            [$class, $action] = $handler;
+            $controller = $this->container->make($class);
+            $ref        = new ReflectionMethod($controller, $action);
+            $args       = $this->bindParams($ref->getParameters(), $routeParams);
+            return $controller->$action(...$args);
+        }
+
+        throw new RuntimeException('Handler inválido: ' . json_encode($handler));
+    }
+
+    private function bindParams(array $reflectionParams, array $routeParams): array
+    {
+        $args = [];
+
+        foreach ($reflectionParams as $param) {
+            $name = $param->getName();
+            $type = $param->getType();
+
+            if (array_key_exists($name, $routeParams)) {
+                $value = $routeParams[$name];
+                if ($type && $type->isBuiltin()) {
+                    settype($value, $type->getName());
+                }
+                $args[] = $value;
+                continue;
+            }
+
+            if ($type && !$type->isBuiltin()) {
+                $args[] = $this->container->make($type->getName());
+                continue;
+            }
+
+            if ($param->isDefaultValueAvailable()) {
+                $args[] = $param->getDefaultValue();
+                continue;
+            }
+
+            throw new RuntimeException("Parâmetro '{$name}' não pôde ser resolvido.");
+        }
+
+        return $args;
     }
 
     private function match(string $routePath, string $requestPath): ?array
     {
-
         if (!str_contains($routePath, '{')) {
             return $routePath === $requestPath ? [] : null;
         }
