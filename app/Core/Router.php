@@ -40,6 +40,9 @@ final readonly class Router
 
     private function runPipeline(array $middleware, array|callable $handler, array $routeParams): void
     {
+        /**
+         * @throws \ReflectionException
+         */
         $final = function () use ($handler, $routeParams): void {
             $result = $this->invokeHandler($handler, $routeParams);
             if ($result instanceof IActionResult) {
@@ -61,10 +64,13 @@ final readonly class Router
         $chain();
     }
 
+    /**
+     * @throws \ReflectionException
+     */
     private function invokeHandler(array|callable $handler, array $routeParams): mixed
     {
         if (is_callable($handler) && !is_array($handler)) {
-            $ref  = new ReflectionFunction(\Closure::fromCallable($handler));
+            $ref  = new ReflectionFunction($handler(...));
             $args = $this->bindParams($ref->getParameters(), $routeParams);
             return $handler(...$args);
         }

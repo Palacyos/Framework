@@ -2,7 +2,7 @@
 
 namespace App\Core\Results;
 
-final class NotFoundResult implements IActionResult
+final readonly class NotFoundResult implements IActionResult
 {
     public function __construct(private string $message = '404 Not Found') {}
 

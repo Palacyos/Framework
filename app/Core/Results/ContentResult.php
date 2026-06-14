@@ -2,7 +2,7 @@
 
 namespace App\Core\Results;
 
-final class ContentResult implements IActionResult
+final readonly class ContentResult implements IActionResult
 {
     public function __construct(
         private string $content,
