@@ -2,12 +2,13 @@
 
 namespace App\Controllers;
 
-use App\Core\View;
+use App\Core\Results\IActionResult;
+use App\Core\Results\ViewResult;
 
 final class HomeController
 {
-    public function index(): void
+    public function index(): IActionResult
     {
-        View::render('home');
+        return new ViewResult('home');
     }
 }
