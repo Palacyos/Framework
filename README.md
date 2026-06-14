@@ -69,7 +69,7 @@ npm run build  # produção
 
 ## O ponto de entrada — `public/index.php`
 
-Equivalente ao `Program.cs` do .NET. É aqui que tudo é configurado: serviços, middleware e rotas.
+É aqui que tudo é configurado: serviços, middleware e rotas.
 
 ```php
 <?php
