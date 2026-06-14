@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
-<?php echo $content; ?>
+<?php
+/** @var $content */
+echo $content;
+
+?>
 </body>
 </html>

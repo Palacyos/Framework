@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body class="min-h-screen flex items-center justify-center">
-<?php echo $content; ?>
+<?php
+/** @var $content */
+echo $content;
+?>
 </body>
 </html>

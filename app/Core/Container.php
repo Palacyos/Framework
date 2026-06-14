@@ -60,6 +60,9 @@ final class Container
         return $this->autowire($concrete);
     }
 
+    /**
+     * @throws \ReflectionException
+     */
     private function autowire(string $class): mixed
     {
         $ref = new ReflectionClass($class);

@@ -5,8 +5,8 @@ namespace App\Core\Results;
 final class JsonResult implements IActionResult
 {
     public function __construct(
-        private mixed $data,
-        private int   $status = 200
+        private readonly mixed $data,
+        private readonly int $status = 200
     ) {}
 
     public function execute(): void

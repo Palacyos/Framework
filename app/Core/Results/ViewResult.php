@@ -4,7 +4,7 @@ namespace App\Core\Results;
 
 use App\Core\View;
 
-final class ViewResult implements IActionResult
+final readonly class ViewResult implements IActionResult
 {
     public function __construct(
         private string $view,
