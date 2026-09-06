@@ -2,17 +2,23 @@
 
 namespace App\Core\Results;
 
+use App\Core\Http\HttpContext;
+
 final readonly class JsonResult implements IActionResult
 {
+    /** @param array<string, string> $headers */
     public function __construct(
         private mixed $data,
-        private int   $status = 200
+        private int   $status = 200,
+        private array $headers = [],
     ) {}
 
-    public function execute(): void
+    public function execute(HttpContext $context): void
     {
-        http_response_code($this->status);
-        header('Content-Type: application/json');
-        echo json_encode($this->data);
+        $context->response
+            ->status($this->status)
+            ->header('Content-Type', 'application/json; charset=utf-8');
+        foreach ($this->headers as $name => $value) $context->response->header($name, $value);
+        $context->response->write(json_encode($this->data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
     }
 }

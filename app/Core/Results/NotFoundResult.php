@@ -2,13 +2,14 @@
 
 namespace App\Core\Results;
 
+use App\Core\Http\HttpContext;
+
 final readonly class NotFoundResult implements IActionResult
 {
     public function __construct(private string $message = '404 Not Found') {}
 
-    public function execute(): void
+    public function execute(HttpContext $context): void
     {
-        http_response_code(404);
-        echo $this->message;
+        $context->response->status(404)->header('Content-Type', 'text/plain; charset=utf-8')->write($this->message);
     }
 }

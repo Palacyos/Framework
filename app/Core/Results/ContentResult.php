@@ -2,6 +2,8 @@
 
 namespace App\Core\Results;
 
+use App\Core\Http\HttpContext;
+
 final readonly class ContentResult implements IActionResult
 {
     public function __construct(
@@ -10,10 +12,11 @@ final readonly class ContentResult implements IActionResult
         private int    $status      = 200
     ) {}
 
-    public function execute(): void
+    public function execute(HttpContext $context): void
     {
-        http_response_code($this->status);
-        header("Content-Type: {$this->contentType}");
-        echo $this->content;
+        $context->response
+            ->status($this->status)
+            ->header('Content-Type', $this->contentType . '; charset=utf-8')
+            ->write($this->content);
     }
 }

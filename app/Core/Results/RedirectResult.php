@@ -2,7 +2,7 @@
 
 namespace App\Core\Results;
 
-use JetBrains\PhpStorm\NoReturn;
+use App\Core\Http\HttpContext;
 
 final readonly class RedirectResult implements IActionResult
 {
@@ -11,11 +11,8 @@ final readonly class RedirectResult implements IActionResult
         private int    $status = 302
     ) {}
 
-    #[NoReturn]
-    public function execute(): void
+    public function execute(HttpContext $context): void
     {
-        http_response_code($this->status);
-        header("Location: {$this->url}");
-        exit();
+        $context->response->status($this->status)->header('Location', $this->url);
     }
 }

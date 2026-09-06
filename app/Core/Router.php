@@ -2,60 +2,85 @@
 
 namespace App\Core;
 
+use App\Core\Binding\ModelBinder;
+use App\Core\Filters\FilterPipeline;
+use App\Core\Http\HttpContext;
+use App\Core\Http\HttpException;
+use BackedEnum;
+
 use App\Core\Results\IActionResult;
 use App\Core\Results\NotFoundResult;
 use ReflectionFunction;
 use ReflectionMethod;
 use RuntimeException;
 
+/**
+ * @phpstan-type Handler \Closure|array{class-string, string}
+ * @phpstan-type RouteDefinition array{method: string, path: string, handler: Handler, middleware: list<string|object>, name: ?string, metadata: \App\Core\Routing\EndpointMetadataCollection}
+ */
 final readonly class Router
 {
+    /** @param list<RouteDefinition> $routes */
     public function __construct(
         private array     $routes,
         private Container $container
     ) {}
 
-    public function dispatch(): void
+    public function dispatch(HttpContext $context): void
     {
-        $method = $_SERVER['REQUEST_METHOD'];
-        $path   = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        $method = $context->request->method;
+        $path   = $context->request->path;
 
+        $allowedMethods = [];
         foreach ($this->routes as $route) {
-            if ($route['method'] !== $method) {
-                continue;
-            }
-
             $params = $this->match($route['path'], $path);
+            if ($params === null) continue;
 
-            if ($params === null) {
+            if ($route['method'] !== $method) {
+                $allowedMethods[] = $route['method'];
                 continue;
             }
 
-            $this->runPipeline($route['middleware'], $route['handler'], $params);
+            $context->routeValues = $params;
+            $context->endpoint = $route;
+            $this->runPipeline($context, $route['middleware'], $route['handler'], $params);
             return;
         }
 
-        (new NotFoundResult())->execute();
+        if ($allowedMethods !== []) {
+            $context->response->header('Allow', implode(', ', array_unique($allowedMethods)));
+            throw new HttpException(405, 'Método HTTP não permitido.');
+        }
+
+        (new NotFoundResult())->execute($context);
     }
 
-    private function runPipeline(array $middleware, array|callable $handler, array $routeParams): void
+    /**
+     * @param list<string|object> $middleware
+     * @param Handler $handler
+     * @param array<string, string> $routeParams
+     */
+    private function runPipeline(HttpContext $context, array $middleware, array|callable $handler, array $routeParams): void
     {
         /**
          * @throws \ReflectionException
          */
-        $final = function () use ($handler, $routeParams): void {
-            $result = $this->invokeHandler($handler, $routeParams);
+        $final = function () use ($handler, $routeParams, $context): void {
+            $result = $this->invokeHandler($handler, $routeParams, $context);
             if ($result instanceof IActionResult) {
-                $result->execute();
+                (new FilterPipeline($this->container))->invokeResult($context, $result);
             }
         };
 
         $chain = array_reduce(
             array_reverse($middleware),
-            function (callable $next, string|object $mw) {
-                return function () use ($next, $mw): void {
+            function (callable $next, string|object $mw) use ($context) {
+                return function () use ($next, $mw, $context): void {
                     $instance = is_string($mw) ? $this->container->make($mw) : $mw;
-                    $instance->handle($next);
+                    if (!is_object($instance) || !method_exists($instance, 'handle')) {
+                        throw new RuntimeException('Middleware inválido.');
+                    }
+                    $instance->handle($context, $next);
                 };
             },
             $final
@@ -67,66 +92,95 @@ final readonly class Router
     /**
      * @throws \ReflectionException
      */
-    private function invokeHandler(array|callable $handler, array $routeParams): mixed
+    /**
+     * @param Handler $handler
+     * @param array<string, string> $routeParams
+     */
+    private function invokeHandler(array|callable $handler, array $routeParams, HttpContext $context): mixed
     {
         if (is_callable($handler) && !is_array($handler)) {
             $ref  = new ReflectionFunction($handler(...));
-            $args = $this->bindParams($ref->getParameters(), $routeParams);
-            return $handler(...$args);
+            $args = $this->bindParams($ref->getParameters(), $context);
+            return (new FilterPipeline($this->container))->invokeAction(
+                $context,
+                $args,
+                static fn (): mixed => $handler(...$args),
+            );
         }
 
-        if (is_array($handler) && count($handler) === 2) {
-            [$class, $action] = $handler;
-            $controller = $this->container->make($class);
-            $ref        = new ReflectionMethod($controller, $action);
-            $args       = $this->bindParams($ref->getParameters(), $routeParams);
-            return $controller->$action(...$args);
+        [$class, $action] = $handler;
+        $controller = $this->container->make($class);
+        if (!is_object($controller)) {
+            throw new RuntimeException("Controller inválido: {$class}");
         }
-
-        throw new RuntimeException('Handler inválido: ' . json_encode($handler));
+        $ref = new ReflectionMethod($controller, $action);
+        $args = $this->bindParams($ref->getParameters(), $context);
+        return (new FilterPipeline($this->container))->invokeAction(
+            $context,
+            $args,
+            static fn (): mixed => $controller->$action(...$args),
+        );
     }
 
-    private function bindParams(array $reflectionParams, array $routeParams): array
+    /**
+     * @param list<\ReflectionParameter> $reflectionParams
+     * @return list<mixed>
+     */
+    private function bindParams(array $reflectionParams, HttpContext $context): array
     {
-        $args = [];
+        $binder = new ModelBinder();
+        return array_map(
+            static fn (\ReflectionParameter $parameter): mixed => $binder->bind($parameter, $context),
+            $reflectionParams,
+        );
 
-        foreach ($reflectionParams as $param) {
-            $name = $param->getName();
-            $type = $param->getType();
-
-            if (array_key_exists($name, $routeParams)) {
-                $value = $routeParams[$name];
-                if ($type && $type->isBuiltin()) {
-                    settype($value, $type->getName());
-                }
-                $args[] = $value;
-                continue;
-            }
-
-            if ($type && !$type->isBuiltin()) {
-                $args[] = $this->container->make($type->getName());
-                continue;
-            }
-
-            if ($param->isDefaultValueAvailable()) {
-                $args[] = $param->getDefaultValue();
-                continue;
-            }
-
-            throw new RuntimeException("Parâmetro '{$name}' não pôde ser resolvido.");
-        }
-
-        return $args;
     }
 
+    private function convertBuiltin(string $value, string $type, string $name): mixed
+    {
+        return match ($type) {
+            'string', 'mixed' => $value,
+            'int' => filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE)
+                ?? throw new HttpException(400, "Parâmetro '{$name}' deve ser inteiro."),
+            'float' => filter_var($value, FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE)
+                ?? throw new HttpException(400, "Parâmetro '{$name}' deve ser numérico."),
+            'bool' => filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE)
+                ?? throw new HttpException(400, "Parâmetro '{$name}' deve ser booleano."),
+            default => throw new HttpException(400, "Tipo '{$type}' não suportado no binding."),
+        };
+    }
+
+    private function convertObject(string $value, string $class, string $name): mixed
+    {
+        if (is_subclass_of($class, BackedEnum::class)) {
+            return $class::tryFrom($value)
+                ?? throw new HttpException(400, "Valor inválido para '{$name}'.");
+        }
+        return $value;
+    }
+
+    /** @return array<string, string>|null */
     private function match(string $routePath, string $requestPath): ?array
     {
         if (!str_contains($routePath, '{')) {
             return $routePath === $requestPath ? [] : null;
         }
 
-        $pattern = preg_replace('/\{([a-zA-Z_]+)}/', '(?P<$1>[^/]+)', $routePath);
-        $pattern = '#^' . $pattern . '$#';
+        $pattern = preg_replace_callback(
+            '/\{([a-zA-Z_][a-zA-Z0-9_]*)(?::(int|uuid|alpha|slug))?}/',
+            static function (array $match): string {
+                $valuePattern = match ($match[2] ?? null) {
+                    'int' => '-?\\d+',
+                    'uuid' => '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}',
+                    'alpha' => '[a-zA-Z]+',
+                    'slug' => '[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*',
+                    default => '[^/]+',
+                };
+                return '(?P<' . $match[1] . '>' . $valuePattern . ')';
+            },
+            $routePath,
+        );
+        $pattern = '#^' . $pattern . '$#D';
 
         if (!preg_match($pattern, $requestPath, $matches)) {
             return null;

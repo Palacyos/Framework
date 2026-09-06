@@ -2,6 +2,7 @@
 
 namespace App\Core;
 
+use App\Core\Http\HttpException;
 use Random\RandomException;
 
 final class Csrf
@@ -14,14 +15,16 @@ final class Csrf
         if (!Session::get('_csrf')) {
             Session::set('_csrf', bin2hex(random_bytes(32)));
         }
-        return Session::get('_csrf');
+        $token = Session::get('_csrf');
+        assert(is_string($token));
+        return $token;
     }
 
     public static function verify(?string $token): void
     {
-        if (!$token || $token !== Session::get('_csrf')) {
-            http_response_code(419);
-            exit('CSRF inválido');
+        $expected = Session::get('_csrf');
+        if (!is_string($expected) || !is_string($token) || !hash_equals($expected, $token)) {
+            throw new HttpException(419, 'O token antiforgery é inválido ou expirou.');
         }
     }
 }

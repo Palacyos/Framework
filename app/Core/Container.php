@@ -4,18 +4,30 @@ namespace App\Core;
 
 use Closure;
 use ReflectionClass;
+use ReflectionNamedType;
 use RuntimeException;
 
+/** @phpstan-type Binding array{concrete: string|Closure, lifetime: 'singleton'|'scoped'|'transient'} */
 final class Container
 {
+    /** @var array<string, mixed> */
     private array $singletons = [];
+    /** @var array<string, mixed> */
     private array $scoped     = [];
+    /** @var array<class-string, true> */
+    private array $resolving  = [];
 
+    /** @param array<string, Binding> $bindings */
     public function __construct(private array $bindings = []) {}
 
     public function bind(string $abstract, Closure $factory): void
     {
         $this->bindings[$abstract] = ['concrete' => $factory, 'lifetime' => 'transient'];
+    }
+
+    public function has(string $abstract): bool
+    {
+        return isset($this->bindings[$abstract]);
     }
 
     public function make(string $abstract): mixed
@@ -57,13 +69,33 @@ final class Container
         if ($concrete instanceof Closure) {
             return $concrete($this);
         }
+        if (!class_exists($concrete)) {
+            throw new RuntimeException("Classe concreta não encontrada: {$concrete}");
+        }
         return $this->autowire($concrete);
     }
 
     /**
      * @throws \ReflectionException
      */
+    /** @param class-string $class */
     private function autowire(string $class): mixed
+    {
+        if (isset($this->resolving[$class])) {
+            $chain = implode(' -> ', [...array_keys($this->resolving), $class]);
+            throw new RuntimeException("Dependência circular detectada: {$chain}");
+        }
+
+        $this->resolving[$class] = true;
+        try {
+            return $this->build($class);
+        } finally {
+            unset($this->resolving[$class]);
+        }
+    }
+
+    /** @param class-string $class */
+    private function build(string $class): mixed
     {
         $ref = new ReflectionClass($class);
 
@@ -81,7 +113,7 @@ final class Container
         foreach ($constructor->getParameters() as $param) {
             $type = $param->getType();
 
-            if ($type === null || $type->isBuiltin()) {
+            if (!$type instanceof ReflectionNamedType || $type->isBuiltin()) {
                 if ($param->isDefaultValueAvailable()) {
                     $args[] = $param->getDefaultValue();
                     continue;

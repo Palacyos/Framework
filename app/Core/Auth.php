@@ -9,6 +9,7 @@ final class Auth
         return Session::get('auth_id') !== null;
     }
 
+    /** @param array<string, mixed> $extra */
     public static function login(int $id, string $type, array $extra = []): void
     {
         Session::regenerate();
@@ -30,12 +31,13 @@ final class Auth
     public static function id(): ?int
     {
         $id = Session::get('auth_id');
-        return $id !== null ? (int) $id : null;
+        return is_numeric($id) ? (int) $id : null;
     }
 
     public static function type(): ?string
     {
-        return Session::get('auth_type');
+        $type = Session::get('auth_type');
+        return is_string($type) ? $type : null;
     }
 
     public static function is(string $type): bool

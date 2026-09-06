@@ -1,4 +1,6 @@
 /vendor/
 /node_modules/
+.phpstan-cache/
+.phpunit.cache/
 .env
 public/assets/css/app.css

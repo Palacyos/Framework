@@ -1,0 +1,7 @@
+parameters:
+    level: max
+    paths:
+        - app/Core
+        - app/Middlewares
+        - app/Controllers
+    tmpDir: .phpstan-cache

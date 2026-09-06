@@ -513,3 +513,128 @@ DB_NAME=meu_banco
 DB_USER=root
 DB_PASS=senha
 ```
+## Fluxo profissional no PHP 8.5
+
+O requisito mínimo atual é PHP 8.5. O runtime segue o mesmo modelo mental do ASP.NET Core:
+
+```text
+WebApplicationBuilder
+  → ServiceCollection / Container
+  → WebApplication
+  → HttpContext
+  → Middleware
+  → Endpoint metadata
+  → Authentication / Authorization
+  → Model binding / ModelState
+  → Action filters
+  → Controller
+  → Result filters
+  → IActionResult / HttpResponse
+```
+
+### Bootstrap recomendado
+
+```php
+$builder = App::createBuilder();
+$app = $builder->build();
+
+$options = new AuthorizationOptions();
+$options->addPolicy('users.write', static fn (PolicyBuilder $policy) => $policy
+    ->requireAuthenticatedUser()
+    ->requireRole('admin')
+    ->requireClaim('permission', 'users.write'));
+
+$app->use(RequestLoggingMiddleware::class);
+$app->use(CsrfMiddleware::class);
+$app->use(AuthenticationMiddleware::class);
+$app->use(new AuthorizationMiddleware($options));
+
+$app->mapControllers([
+    UserController::class,
+]);
+
+$app->run();
+```
+
+Registre middlewares globais antes de mapear controllers, pois a ordem é preservada no endpoint.
+
+### Controller declarativo e DTO
+
+```php
+#[ApiController]
+#[Route('/users')]
+final class UserController
+{
+    #[Authorize(policy: 'users.write')]
+    #[HttpPost(name: 'users.store')]
+    public function store(
+        #[FromForm] CreateUserRequest $request
+    ): IActionResult {
+        return Results::created('/users/1', $request);
+    }
+}
+
+final readonly class CreateUserRequest
+{
+    public function __construct(
+        #[Required, StringLength(max: 120)]
+        public string $name,
+
+        #[Required, EmailAddress]
+        public string $email,
+    ) {}
+}
+```
+
+O binder copia somente campos declarados no DTO. Campos de infraestrutura como `_csrf` e campos desconhecidos não chegam ao controller.
+
+#### Binding convencional sem atributos
+
+Em ações bem tipadas, os atributos de origem são opcionais na maioria dos casos:
+
+```php
+public function create(
+    CreateUserRequest $request,
+    UserService $service,
+): IActionResult {
+    return Results::created('/users', $service->create($request));
+}
+```
+
+A resolução segue esta prioridade:
+
+1. atributo explícito (`FromBody`, `FromForm`, `FromRoute`, `FromQuery`, `FromHeader` ou `FromServices`);
+2. tipo registrado no container, tratado como service;
+3. objeto JSON, quando o corpo ou o content type indica JSON;
+4. objeto de formulário, quando há campos enviados;
+5. parâmetros simples encontrados na rota e depois na query string.
+
+Os atributos continuam disponíveis para eliminar ambiguidades. Services usados como parâmetros de actions devem ser registrados no container. `#[FromBody] array` também é suportado para quem prefere validação manual.
+
+### Testes HTTP em memória
+
+```php
+$factory = new WebApplicationFactory(
+    static function (WebApplication $app): void {
+        $app->mapGet('/ping', static fn () => Results::json(['status' => 'ok']));
+    }
+);
+
+$response = $factory->createClient()->get('/ping');
+
+assert($response->statusCode() === 200);
+assert(json_decode($response->body(), true) === ['status' => 'ok']);
+```
+
+### Qualidade
+
+Após instalar as dependências:
+
+```bash
+composer test
+composer analyse
+composer check
+composer test:smoke
+```
+
+O projeto inclui configuração para PHPUnit 12, PHPStan no nível máximo, smoke tests, logging JSON estruturado e health checks.

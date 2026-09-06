@@ -1,5 +1,5 @@
 # Usa a imagem base do PHP com Apache
-FROM php:8.2-apache
+FROM php:8.5-apache
 
 # Define o diretório de trabalho dentro do container
 WORKDIR /var/www/html
@@ -7,8 +7,8 @@ WORKDIR /var/www/html
 # Instala pacotes do sistema e configura o fuso horário
 RUN apt-get update && apt-get install -y \
     git unzip tzdata \
- && ln -snf /usr/share/zoneinfo/America/Belem /etc/localtime \
- && echo "America/Belem" > /etc/timezone \
+ && ln -snf /usr/share/zoneinfo/America/Fortaleza /etc/localtime \
+ && echo "America/Fortaleza" > /etc/timezone \
  && rm -rf /var/lib/apt/lists/*
 
 # Instala extensões PHP necessárias (pdo e pdo_mysql para o banco de dados)

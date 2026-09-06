@@ -6,7 +6,14 @@ use RuntimeException;
 
 final class View
 {
+    /** @param array<string, mixed> $data */
     public static function render(string $view, array $data = [], string $layout = 'app'): void
+    {
+        echo self::renderToString($view, $data, $layout);
+    }
+
+    /** @param array<string, mixed> $data */
+    public static function renderToString(string $view, array $data = [], string $layout = 'app'): string
     {
         extract($data, EXTR_SKIP);
 
@@ -26,6 +33,8 @@ final class View
             throw new RuntimeException("Layout não encontrado: {$layoutFile}");
         }
 
+        ob_start();
         require $layoutFile;
+        return (string) ob_get_clean();
     }
 }

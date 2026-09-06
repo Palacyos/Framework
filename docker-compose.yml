@@ -6,19 +6,11 @@ services:
       - "8000:80"
     volumes:
       - ./:/var/www/html
-      - ./docker/php/conf.d/99-app.ini:/usr/local/etc/php/conf.d/99-app.ini
+      - vendor_data:/var/www/html/vendor
     environment:
-      - TZ=America/Belem
+      - TZ=America/Fortaleza
     depends_on:
       - db
-
-  node:
-    image: node:20-alpine
-    container_name: framework
-    working_dir: /app
-    volumes:
-      - ./:/app
-    command: sh -c "npm install && npm run dev"
 
   db:
     image: mariadb:10.6
@@ -26,10 +18,10 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: password_root
-      MYSQL_DATABASE: db_name
-      MYSQL_USER: root
-      MYSQL_PASSWORD: password_myswl
-      TZ: America/Belem
+      MYSQL_DATABASE: app
+      MYSQL_USER: app
+      MYSQL_PASSWORD: secret
+      TZ: America/Fortaleza
     ports:
       - "3307:3306"
     volumes:
@@ -37,3 +29,4 @@ services:
 
 volumes:
   db_data:
+  vendor_data:
