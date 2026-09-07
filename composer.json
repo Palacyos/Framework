@@ -1,6 +1,6 @@
 {
     "name": "palacios/framework",
-    "description": "Framework MVC para PHP 8.5 inspirado no pipeline do ASP.NET Core",
+    "description": "Framework web MVC moderno, tipado e modular para PHP 8.5",
     "license": "MIT",
     "type": "library",
     "require": {

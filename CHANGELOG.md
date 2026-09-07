@@ -6,10 +6,14 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-07
+
+Primeira versão pública.
+
 ### Added
 
 - Pacote Composer `palacios/framework` para PHP 8.5.
-- Bootstrap inspirado no `Program.cs` do ASP.NET Core.
+- Bootstrap centralizado para configurar serviços, middleware e rotas.
 - Container com lifetimes singleton, scoped e transient.
 - Controllers declarativos, descoberta automática e binding convencional.
 - Pipeline de middleware, filtros, autenticação, autorização e antiforgery.
@@ -19,7 +23,3 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 - CLI com criação de aplicações, geradores e migrations.
 - Skeleton independente distribuído com o pacote.
 - Integração contínua para PHP 8.5.
-
-## [0.1.0] - Unreleased
-
-Primeira versão pública planejada.

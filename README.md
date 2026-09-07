@@ -1,37 +1,62 @@
 # Palacios Framework
 
-Framework web MVC para PHP 8.5.
+Framework web MVC moderno para PHP 8.5, com roteamento declarativo, injeção de dependência, model binding, validação, middleware, autenticação, autorização, proteção antiforgery, views, banco de dados, migrations e ferramentas de linha de comando.
 
-O Core é instalado pelo Composer em `vendor/palacios/framework`. A aplicação mantém apenas controllers, models, services, repositories, views e seu arquivo de bootstrap.
-
-> Estado: pré-release. A primeira versão pública planejada é `v0.1.0`.
+O código da aplicação fica separado do framework: o Composer instala o núcleo em `vendor/palacios/framework`, enquanto seu projeto mantém apenas as regras de negócio, controllers, models, repositories, services e views.
 
 ## Requisitos
 
-- PHP 8.5
-- Composer 2
-- Extensões `json`, `mbstring`, `PDO` e `session`
-- Um driver PDO compatível com o banco utilizado
+Antes de começar, instale:
 
-## Criando uma aplicação
+- PHP 8.5 ou superior;
+- Composer 2;
+- extensões PHP `json`, `mbstring`, `PDO` e `session`;
+- um driver PDO para o banco escolhido, como `pdo_mysql` ou `pdo_sqlite`.
 
-Após a publicação no Packagist:
+Confirme o ambiente:
+
+```bash
+php --version
+composer --version
+```
+
+## Criando seu primeiro projeto
+
+Instale a ferramenta globalmente:
 
 ```bash
 composer global require palacios/framework:^0.1
+```
+
+Crie e execute uma aplicação:
+
+```bash
 framework new MinhaAplicacao
 cd MinhaAplicacao
 php -S localhost:8000 -t public
 ```
 
-Durante o desenvolvimento deste repositório:
+Acesse [http://localhost:8000](http://localhost:8000).
+
+Se o comando `framework` não for encontrado, adicione o diretório global de binários do Composer ao `PATH` ou execute:
 
 ```bash
-composer install
-php bin/framework new MinhaAplicacao --no-install
+~/.config/composer/vendor/bin/framework new MinhaAplicacao
 ```
 
-O comando `new` copia o skeleton, cria `.env`, gera `APP_KEY`, remove a configuração local de desenvolvimento e, salvo com `--no-install`, executa o Composer.
+O comando `new`:
+
+- copia a estrutura inicial da aplicação;
+- cria o arquivo `.env`;
+- gera automaticamente uma `APP_KEY`;
+- configura a dependência da versão instalada;
+- executa `composer install`.
+
+Use `--no-install` quando quiser instalar as dependências depois:
+
+```bash
+framework new MinhaAplicacao --no-install
+```
 
 ## Estrutura da aplicação
 
@@ -39,17 +64,20 @@ O comando `new` copia o skeleton, cria `.env`, gera `APP_KEY`, remove a configur
 MinhaAplicacao/
 ├── app/
 │   ├── Controllers/
+│   ├── Middleware/
 │   ├── Models/
 │   ├── Repositories/
 │   │   └── Interfaces/
 │   ├── Services/
-│   ├── Middleware/
+│   ├── Support/
 │   └── Views/
+│       └── layouts/
 ├── bootstrap/
 │   └── app.php
 ├── database/
 │   └── migrations/
 ├── public/
+│   ├── assets/
 │   └── index.php
 ├── resources/
 ├── tests/
@@ -57,36 +85,42 @@ MinhaAplicacao/
 └── composer.json
 ```
 
-`bootstrap/app.php` equivale, conceitualmente, ao `Program.cs`: registra serviços, monta o pipeline e mapeia endpoints. `public/index.php` é somente o ponto de entrada HTTP.
+Principais diretórios:
 
-## Bootstrap
+- `app/`: código da sua aplicação;
+- `bootstrap/app.php`: registro de serviços, middleware e rotas;
+- `database/migrations/`: alterações versionadas do banco;
+- `public/`: único diretório que deve ficar exposto pelo servidor web;
+- `resources/`: arquivos de estilo e outros recursos;
+- `tests/`: testes da aplicação;
+- `vendor/`: dependências gerenciadas pelo Composer; não edite esse diretório.
+
+## Como uma requisição é processada
+
+O arquivo `public/index.php` inicia a aplicação definida em `bootstrap/app.php`. O pipeline executa os middleware habilitados, encontra a rota correspondente, resolve as dependências do controller, converte os dados da requisição em parâmetros tipados e produz a resposta HTTP.
+
+A ordem das chamadas `use*()` em `bootstrap/app.php` também é a ordem do pipeline.
+
+## Configuração inicial
+
+O projeto gerado carrega as variáveis do arquivo `.env` e cria a aplicação:
 
 ```php
 <?php
 
 use Palacios\Framework\App;
 use Palacios\Framework\Hosting\ApplicationEnvironment;
-use Palacios\Framework\Security\Authentication\AuthenticationOptions;
-use Palacios\Framework\Security\Authorization\AuthorizationOptions;
-use Palacios\Framework\Security\Authorization\PolicyBuilder;
 
-$environment = $_ENV['APP_ENV'] ?? ApplicationEnvironment::PRODUCTION;
-$builder = App::createBuilder(dirname(__DIR__), (string) $environment);
+$builder = App::createBuilder(
+    dirname(__DIR__),
+    $_ENV['APP_ENV'] ?? ApplicationEnvironment::PRODUCTION,
+);
 
 $builder->services()
     ->addControllers()
     ->addViews()
-    ->addAuthentication(
-        static fn (AuthenticationOptions $options) => $options
-            ->loginPath('/login')
-            ->accessDeniedPath('/acesso-negado'),
-    )
-    ->addAuthorization(
-        static fn (AuthorizationOptions $options) => $options
-            ->addPolicy('admin', static fn (PolicyBuilder $policy) => $policy
-                ->requireAuthenticatedUser()
-                ->requireRole('admin')),
-    );
+    ->addAuthentication()
+    ->addAuthorization();
 
 $app = $builder->build();
 
@@ -96,33 +130,22 @@ if ($builder->environment->isDevelopment()) {
     $app->useExceptionHandler();
 }
 
-$app->useRequestLogging();
-$app->useAntiforgery();
-$app->useAuthentication();
-$app->useAuthorization();
 $app->mapControllers();
 
 return $app;
 ```
 
-A ordem de `use*()` define a ordem do pipeline.
+O arquivo criado pelo comando `new` já contém uma configuração funcional. Habilite somente os middleware necessários ao projeto.
 
-## Injeção de dependência
+## Criando um controller
 
-```php
-$builder->services()
-    ->addSingleton(Cache::class, Cache::class)
-    ->addScoped(IUserRepository::class, UserRepository::class)
-    ->addTransient(Mailer::class, Mailer::class);
+Gere o arquivo:
+
+```bash
+framework make:controller Users
 ```
 
-- `addSingleton`: uma instância durante a aplicação.
-- `addScoped`: uma instância por requisição.
-- `addTransient`: uma nova instância por resolução.
-
-Controllers, handlers e seus parâmetros recebem dependências tipadas automaticamente.
-
-## Controllers declarativos
+Defina o prefixo e as ações com atributos:
 
 ```php
 <?php
@@ -133,106 +156,305 @@ use Palacios\Framework\Results\IActionResult;
 use Palacios\Framework\Results\Results;
 use Palacios\Framework\Routing\Attributes\HttpGet;
 use Palacios\Framework\Routing\Attributes\Route;
-use Palacios\Framework\Security\Attributes\Authorize;
 
 #[Route('/users')]
-#[Authorize]
-final readonly class UsersController
+final class UsersController
 {
-    public function __construct(private IUserRepository $users) {}
+    #[HttpGet(name: 'users.index')]
+    public function index(): IActionResult
+    {
+        return Results::json([
+            ['id' => 1, 'name' => 'Ana'],
+            ['id' => 2, 'name' => 'Carlos'],
+        ]);
+    }
 
     #[HttpGet('/{id:int}', name: 'users.show')]
     public function show(int $id): IActionResult
     {
-        return Results::json($this->users->find($id));
+        return Results::json(['id' => $id]);
     }
 }
 ```
 
-`addControllers()` descobre controllers em `app/Controllers`; `mapControllers()` registra as rotas encontradas.
+`addControllers()` descobre as classes em `app/Controllers` e `mapControllers()` registra suas rotas.
 
-## Binding e validação
+## Rotas diretas e grupos
 
-Por convenção, valores tipados são obtidos da rota, query string, formulário, JSON ou container. Os atributos abaixo existem para remover ambiguidades:
-
-- `#[FromRoute]`
-- `#[FromQuery]`
-- `#[FromForm]`
-- `#[FromBody]`
-- `#[FromHeader]`
-- `#[FromServices]`
-
-DTOs são opcionais. Interfaces, repositories e services podem ser utilizados diretamente. Quando um DTO é usado, as regras `Required`, `EmailAddress` e `StringLength` alimentam o `ModelState`.
-
-O campo antiforgery não participa da hidratação de modelos tipados, portanto não precisa ser removido manualmente no controller.
-
-## Minimal APIs e grupos de rotas
+Rotas também podem ser declaradas no bootstrap:
 
 ```php
-$app->mapGet('/users/{id:int}', [UsersController::class, 'show'])
-    ->withName('users.show')
-    ->requireAuthorization('admin')
-    ->withTags('Users')
-    ->withSummary('Obtém um usuário')
-    ->produces(200, 'application/json');
+$app->mapGet('/status', static fn () => Results::ok([
+    'status' => 'online',
+]));
 
-$url = $app->urlFor('users.show', ['id' => 42]);
+$app->mapPost('/users', [UsersController::class, 'store']);
 ```
 
-Grupos compartilham prefixo, middleware e metadados e podem ser aninhados:
+Agrupe endpoints que compartilham prefixo ou regras:
 
 ```php
 $api = $app->mapGroup('/api')
-    ->addMiddleware(ApiMiddleware::class)
-    ->requireAuthorization()
     ->withTags('API');
 
 $v1 = $api->mapGroup('/v1');
+
 $v1->mapGet('/users', [UsersController::class, 'index']);
-$v1->mapGet('/status', static fn () => Results::ok(['status' => 'ok']))
-    ->allowAnonymous();
+$v1->mapGet('/users/{id:int}', [UsersController::class, 'show']);
 ```
 
-Rotas com o mesmo método e caminho, nomes duplicados e prefixos inválidos são rejeitados durante o registro.
+Rotas nomeadas permitem gerar URLs sem repetir caminhos:
+
+```php
+$url = $app->urlFor('users.show', ['id' => 42]);
+```
+
+## Injeção de dependência
+
+Registre contratos e implementações em `bootstrap/app.php`:
+
+```php
+$builder->services()
+    ->addScoped(IUserRepository::class, UserRepository::class)
+    ->addTransient(Mailer::class, Mailer::class)
+    ->addSingleton(Cache::class, Cache::class);
+```
+
+Tempos de vida disponíveis:
+
+- `addScoped`: uma instância por requisição;
+- `addTransient`: uma nova instância a cada resolução;
+- `addSingleton`: uma única instância durante a aplicação.
+
+Depois, solicite a dependência pelo construtor:
+
+```php
+final readonly class UsersController
+{
+    public function __construct(
+        private IUserRepository $users,
+    ) {}
+}
+```
+
+Interfaces, repositories e services podem ser usados sem DTOs. DTOs são opcionais e úteis quando você quer representar e validar dados de entrada de forma explícita.
+
+## Recebendo dados da requisição
+
+Parâmetros tipados são preenchidos automaticamente por convenção a partir da rota, query string, formulário, JSON ou container:
+
+```php
+#[HttpGet('/{id:int}')]
+public function show(int $id): IActionResult
+{
+    return Results::json(['id' => $id]);
+}
+```
+
+Quando houver ambiguidade, indique a origem:
+
+- `#[FromRoute]`: parâmetro da rota;
+- `#[FromQuery]`: query string;
+- `#[FromForm]`: formulário;
+- `#[FromBody]`: corpo JSON;
+- `#[FromHeader]`: cabeçalho HTTP;
+- `#[FromServices]`: container de serviços.
+
+Em código bem tipado e sem ambiguidade, esses atributos não são obrigatórios.
+
+## DTOs e validação
+
+Um DTO pode centralizar os dados e suas regras:
+
+```php
+use Palacios\Framework\Validation\Attributes\EmailAddress;
+use Palacios\Framework\Validation\Attributes\Required;
+use Palacios\Framework\Validation\Attributes\StringLength;
+
+final class CreateUserInput
+{
+    public function __construct(
+        #[Required]
+        #[StringLength(maximumLength: 120, minimumLength: 2)]
+        public string $name,
+
+        #[Required]
+        #[EmailAddress]
+        public string $email,
+    ) {}
+}
+```
+
+Use DTOs quando eles deixarem a entrada mais clara. Para ações simples, parâmetros escalares tipados ou services injetados continuam válidos.
+
+## Views
+
+Retorne uma view passando seus dados:
+
+```php
+return Results::view('users/index', [
+    'users' => $this->users->all(),
+]);
+```
+
+No arquivo `app/Views/users/index.php`:
+
+```php
+<h1>Usuários</h1>
+
+<?php foreach ($users as $user): ?>
+    <p><?= e($user->name) ?></p>
+<?php endforeach; ?>
+```
+
+O helper `e()` escapa conteúdo para HTML. Os layouts ficam, por padrão, em `app/Views/layouts`.
+
+## Formulários e proteção antiforgery
+
+Ative o middleware antes de mapear os controllers:
+
+```php
+$app->useAntiforgery();
+$app->mapControllers();
+```
+
+Inclua o campo oculto em formulários que alteram dados:
+
+```php
+<form method="post" action="/users">
+    <?= csrf_input() ?>
+
+    <input type="text" name="name">
+    <button type="submit">Salvar</button>
+</form>
+```
+
+O framework valida automaticamente o token nas requisições protegidas. O campo interno `_csrf` não é incluído no model binding, portanto o controller recebe apenas os dados do formulário e não precisa remover o token manualmente.
 
 ## Autenticação e autorização
 
+Registre os serviços:
+
 ```php
 $builder->services()
-    ->addAuthentication()
+    ->addAuthentication(
+        static fn (AuthenticationOptions $options) => $options
+            ->loginPath('/login')
+            ->accessDeniedPath('/acesso-negado'),
+    )
     ->addAuthorization();
+```
 
-$app = $builder->build();
+Adicione os middleware nesta ordem:
+
+```php
 $app->useAuthentication();
 $app->useAuthorization();
-
-$app->mapGet('/private', $handler)->requireAuthorization();
-$app->mapGet('/admin', $handler)->requireAuthorization('admin');
-$app->mapGet('/public', $handler)->allowAnonymous();
 ```
 
-Sem caminhos de interface configurados, falhas retornam `401` ou `403`. Com `loginPath()` e `accessDeniedPath()`, aplicações MVC recebem redirects.
-
-## Banco de dados e views
+Proteja endpoints:
 
 ```php
-$builder->services()
-    ->addViews(
-        static fn (ViewOptions $options) => $options
-            ->path('app/Views')
-            ->defaultLayout('app'),
-    )
-    ->addDatabase(
-        static fn (DatabaseOptions $options) => $options
-            ->dsn($_ENV['DB_DSN'])
-            ->username($_ENV['DB_USERNAME'])
-            ->password($_ENV['DB_PASSWORD']),
-    );
+$app->mapGet('/conta', $handler)
+    ->requireAuthorization();
+
+$app->mapGet('/admin', $handler)
+    ->requireAuthorization('admin');
+
+$app->mapGet('/entrar', $loginHandler)
+    ->allowAnonymous();
 ```
 
-Repositories podem receber `PDO` pelo construtor. O Core não lê variáveis de ambiente diretamente durante o bootstrap web.
+Controllers também podem usar `#[Authorize]`. Sem páginas de interface configuradas, acessos negados retornam `401` ou `403`; com `loginPath()` e `accessDeniedPath()`, aplicações web recebem redirecionamentos.
 
-## CLI e geradores
+## Middleware
+
+Crie um middleware:
+
+```bash
+framework make:middleware RequestTrace
+```
+
+Registre middleware globais no pipeline ou associe-os a grupos de rotas:
+
+```php
+$api = $app->mapGroup('/api')
+    ->addMiddleware(RequestTraceMiddleware::class);
+```
+
+Use middleware para responsabilidades transversais, como logs, autenticação, autorização, antiforgery, cabeçalhos e tratamento de erros.
+
+## Banco de dados
+
+Configure o `.env`:
+
+```dotenv
+DB_DRIVER=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=minha_aplicacao
+DB_USERNAME=root
+DB_PASSWORD=secret
+```
+
+Também é possível informar uma DSN completa:
+
+```dotenv
+DB_DSN=sqlite:database/database.sqlite
+```
+
+Registre a conexão:
+
+```php
+$builder->services()->addDatabase(
+    static fn (DatabaseOptions $options) => $options
+        ->dsn($_ENV['DB_DSN'])
+        ->username($_ENV['DB_USERNAME'] ?? null)
+        ->password($_ENV['DB_PASSWORD'] ?? null),
+);
+```
+
+Repositories podem receber `PDO` diretamente pelo construtor.
+
+## Migrations
+
+Gere uma migration:
+
+```bash
+framework make:migration CreateUsers
+```
+
+Implemente as alterações:
+
+```php
+<?php
+
+use Palacios\Framework\Database\Migration;
+
+return new class implements Migration {
+    public function up(PDO $connection): void
+    {
+        $connection->exec(
+            'CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR(120) NOT NULL)',
+        );
+    }
+
+    public function down(PDO $connection): void
+    {
+        $connection->exec('DROP TABLE users');
+    }
+};
+```
+
+Aplique as migrations pendentes:
+
+```bash
+framework database:update
+```
+
+O histórico das migrations executadas fica na tabela `framework_migrations`.
+
+## Geradores disponíveis
 
 ```bash
 framework make:controller Admin/Users
@@ -243,41 +465,11 @@ framework make:middleware RequestTrace
 framework make:migration CreateUsers
 ```
 
-Os geradores criam namespaces PSR-4 e nunca sobrescrevem arquivos existentes. `make:repository` cria a interface e sua implementação.
-
-## Migrations
-
-Uma migration retorna um objeto que implementa `Migration`:
-
-```php
-<?php
-
-use Palacios\Framework\Database\Migration;
-
-return new class implements Migration {
-    public function up(PDO $connection): void
-    {
-        $connection->exec('CREATE TABLE users (id INTEGER PRIMARY KEY)');
-    }
-
-    public function down(PDO $connection): void
-    {
-        $connection->exec('DROP TABLE users');
-    }
-};
-```
-
-Aplique migrations pendentes com:
-
-```bash
-framework database:update
-```
-
-A CLI usa `DB_DSN` ou monta a conexão com `DB_DRIVER`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` e `DB_PASSWORD`. O histórico fica em `framework_migrations`.
+Os geradores usam namespaces PSR-4 e não sobrescrevem arquivos existentes. `make:repository` cria a interface e a implementação.
 
 ## Resultados HTTP
 
-Handlers podem retornar implementações de `IActionResult` usando `Results`:
+Handlers e controllers podem retornar implementações de `IActionResult`:
 
 ```php
 return Results::ok($value);
@@ -292,48 +484,85 @@ return Results::redirect('/login');
 return Results::view('users/index', ['users' => $users]);
 ```
 
-Exceções são convertidas para `application/problem+json`. Detalhes internos aparecem somente com a página de desenvolvimento habilitada.
+Exceções HTTP são convertidas em respostas `application/problem+json`. Detalhes internos ficam visíveis somente no ambiente de desenvolvimento.
+
+## Executando com Docker
+
+O projeto inicial inclui `Dockerfile` e `docker-compose.yml`:
+
+```bash
+docker compose up --build
+```
+
+Ajuste as variáveis do banco no `.env` conforme o ambiente utilizado.
 
 ## Testes
 
+Execute os testes da aplicação:
+
 ```bash
-composer test
-composer analyse
 composer test:smoke
-composer check
 ```
+
+Para testes de integração, use `WebApplicationFactory`:
 
 ```php
 $factory = new WebApplicationFactory(
     static function (WebApplication $app): void {
-        $app->mapGet('/ping', static fn () => Results::json(['status' => 'ok']));
+        $app->mapGet('/ping', static fn () =>
+            Results::json(['status' => 'ok'])
+        );
     },
 );
 
 $response = $factory->createClient()->get('/ping');
 ```
 
-O projeto usa PHPUnit 12, PHPStan no nível máximo e smoke tests sem servidor HTTP externo.
+## Ambientes
 
-## Desenvolvimento do framework
+Defina o ambiente no `.env`:
 
-```bash
-composer install
-composer check
-composer test:smoke
-
-cd template
-composer install
-composer test:smoke
+```dotenv
+APP_ENV=Development
 ```
 
-- `src/`: Core distribuído pelo Composer.
-- `resources/skeleton/`: aplicação copiada por `framework new`.
-- `template/`: aplicação local de desenvolvimento, não incluída no pacote.
-- `tests/`: testes do Core, não incluídos no pacote.
+Valores comuns:
 
-## Versionamento
+- `Development`: página detalhada de exceções;
+- `Production`: respostas seguras sem detalhes internos.
 
-Enquanto a API estiver em `0.x`, mudanças incompatíveis podem ocorrer em versões menores. A partir de `1.0.0`, o projeto seguirá Semantic Versioning.
+Nunca habilite a página detalhada de exceções em produção.
 
-Consulte [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md) e [LICENSE](LICENSE).
+## Servidor web em produção
+
+Configure Apache, Nginx ou outro servidor para usar `public/` como document root. Não exponha a raiz do projeto, o arquivo `.env`, `vendor/` ou `app/` diretamente pela web.
+
+O servidor embutido do PHP é indicado apenas para desenvolvimento local:
+
+```bash
+php -S localhost:8000 -t public
+```
+
+## Atualizando o framework
+
+Verifique versões disponíveis:
+
+```bash
+composer outdated palacios/framework
+```
+
+Atualize dentro da restrição permitida pelo projeto:
+
+```bash
+composer update palacios/framework
+```
+
+Leia o changelog antes de atualizar entre versões menores enquanto o projeto estiver na série `0.x`.
+
+## Ajuda e segurança
+
+- Consulte o [CHANGELOG](CHANGELOG.md) para alterações por versão.
+- Consulte a [política de segurança](SECURITY.md) para reportar vulnerabilidades.
+- O projeto é distribuído sob a [licença MIT](LICENSE).
+
+A série `0.x` representa a fase inicial da API. Mudanças incompatíveis podem ocorrer em versões menores até a estabilização da versão `1.0.0`.
