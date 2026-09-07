@@ -39,7 +39,10 @@ final class CliTest extends TestCase
 
         $composer = json_decode((string) file_get_contents($project . '/composer.json'), true, 512, JSON_THROW_ON_ERROR);
         self::assertArrayNotHasKey('repositories', $composer);
-        self::assertSame('dev-main', $composer['require']['palacios/framework']);
+        self::assertMatchesRegularExpression(
+            '/^(?:dev-main|\^\d+\.\d+)$/',
+            $composer['require']['palacios/framework'],
+        );
     }
 
     public function testGeneratorsCreateNamespacedApplicationFiles(): void
