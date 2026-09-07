@@ -1,6 +1,9 @@
 /vendor/
 /node_modules/
+/template/vendor/
+/template/composer.lock
+/template/.env
 .phpstan-cache/
 .phpunit.cache/
 .env
-public/assets/css/app.css
+/template/public/assets/css/app.css

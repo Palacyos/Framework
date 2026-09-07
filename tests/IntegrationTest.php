@@ -1,23 +1,23 @@
 <?php
 declare(strict_types=1);
 
-use App\Core\Binding\Attributes\FromBody;
-use App\Core\Binding\Attributes\FromForm;
-use App\Core\Binding\Attributes\FromRoute;
-use App\Core\Csrf;
-use App\Core\Results\IActionResult;
-use App\Core\Results\Results;
-use App\Core\Routing\Attributes\ApiController;
-use App\Core\Routing\Attributes\HttpGet;
-use App\Core\Routing\Attributes\Route;
-use App\Core\Security\Attributes\AllowAnonymous;
-use App\Core\Security\Attributes\Authorize;
-use App\Core\Testing\WebApplicationFactory;
-use App\Core\Validation\Attributes\EmailAddress;
-use App\Core\Validation\Attributes\Required;
-use App\Core\WebApplication;
-use App\Middlewares\AuthorizationMiddleware;
-use App\Middlewares\CsrfMiddleware;
+use Palacios\Framework\Binding\Attributes\FromBody;
+use Palacios\Framework\Binding\Attributes\FromForm;
+use Palacios\Framework\Binding\Attributes\FromRoute;
+use Palacios\Framework\Csrf;
+use Palacios\Framework\Results\IActionResult;
+use Palacios\Framework\Results\Results;
+use Palacios\Framework\Routing\Attributes\ApiController;
+use Palacios\Framework\Routing\Attributes\HttpGet;
+use Palacios\Framework\Routing\Attributes\Route;
+use Palacios\Framework\Security\Attributes\AllowAnonymous;
+use Palacios\Framework\Security\Attributes\Authorize;
+use Palacios\Framework\Testing\WebApplicationFactory;
+use Palacios\Framework\Validation\Attributes\EmailAddress;
+use Palacios\Framework\Validation\Attributes\Required;
+use Palacios\Framework\WebApplication;
+use Palacios\Framework\Middleware\AuthorizationMiddleware;
+use Palacios\Framework\Middleware\CsrfMiddleware;
 use PHPUnit\Framework\TestCase;
 
 final class IntegrationTest extends TestCase

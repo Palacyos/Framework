@@ -12,36 +12,36 @@ if (is_file($autoload)) {
     });
 }
 
-use App\Core\Binding\Attributes\FromForm;
-use App\Core\Binding\ModelBinder;
-use App\Core\Configuration\Configuration;
-use App\Core\Http\HttpContext;
-use App\Core\Validation\Attributes\EmailAddress;
-use App\Core\Validation\Attributes\Required;
-use App\Core\Routing\Attributes\HttpGet;
-use App\Core\Routing\Attributes\Route;
-use App\Core\WebApplication;
-use App\Core\Security\Authentication\Claim;
-use App\Core\Security\Authentication\ClaimsIdentity;
-use App\Core\Security\Authentication\ClaimsPrincipal;
-use App\Core\Security\Authorization\AuthorizationOptions;
-use App\Core\Security\Authorization\AuthorizationService;
-use App\Core\Filters\ActionExecutedContext;
-use App\Core\Filters\ActionExecutingContext;
-use App\Core\Filters\FilterPipeline;
-use App\Core\Filters\IActionFilter;
-use App\Core\Filters\IResultFilter;
-use App\Core\Filters\ResultExecutingContext;
-use App\Core\Results\ContentResult;
-use App\Core\Routing\EndpointMetadataCollection;
-use App\Core\Testing\WebApplicationFactory;
-use App\Core\Results\Results;
-use App\Core\Health\HealthCheckResult;
-use App\Core\Health\HealthCheckService;
-use App\Core\Container;
-use App\Core\Http\HttpRequest;
-use App\Core\Http\HttpResponse;
-use App\Core\ServiceCollection;
+use Palacios\Framework\Binding\Attributes\FromForm;
+use Palacios\Framework\Binding\ModelBinder;
+use Palacios\Framework\Configuration\Configuration;
+use Palacios\Framework\Http\HttpContext;
+use Palacios\Framework\Validation\Attributes\EmailAddress;
+use Palacios\Framework\Validation\Attributes\Required;
+use Palacios\Framework\Routing\Attributes\HttpGet;
+use Palacios\Framework\Routing\Attributes\Route;
+use Palacios\Framework\WebApplication;
+use Palacios\Framework\Security\Authentication\Claim;
+use Palacios\Framework\Security\Authentication\ClaimsIdentity;
+use Palacios\Framework\Security\Authentication\ClaimsPrincipal;
+use Palacios\Framework\Security\Authorization\AuthorizationOptions;
+use Palacios\Framework\Security\Authorization\AuthorizationService;
+use Palacios\Framework\Filters\ActionExecutedContext;
+use Palacios\Framework\Filters\ActionExecutingContext;
+use Palacios\Framework\Filters\FilterPipeline;
+use Palacios\Framework\Filters\IActionFilter;
+use Palacios\Framework\Filters\IResultFilter;
+use Palacios\Framework\Filters\ResultExecutingContext;
+use Palacios\Framework\Results\ContentResult;
+use Palacios\Framework\Routing\EndpointMetadataCollection;
+use Palacios\Framework\Testing\WebApplicationFactory;
+use Palacios\Framework\Results\Results;
+use Palacios\Framework\Health\HealthCheckResult;
+use Palacios\Framework\Health\HealthCheckService;
+use Palacios\Framework\Container;
+use Palacios\Framework\Http\HttpRequest;
+use Palacios\Framework\Http\HttpResponse;
+use Palacios\Framework\ServiceCollection;
 
 function expect(bool $condition, string $message): void
 {

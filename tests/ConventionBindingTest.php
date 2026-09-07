@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
 
-use App\Core\Binding\Attributes\FromBody;
-use App\Core\Results\IActionResult;
-use App\Core\Results\Results;
-use App\Core\Testing\WebApplicationFactory;
-use App\Core\Validation\Attributes\Required;
-use App\Core\WebApplication;
-use App\Core\WebApplicationBuilder;
+use Palacios\Framework\Binding\Attributes\FromBody;
+use Palacios\Framework\Results\IActionResult;
+use Palacios\Framework\Results\Results;
+use Palacios\Framework\Testing\WebApplicationFactory;
+use Palacios\Framework\Validation\Attributes\Required;
+use Palacios\Framework\WebApplication;
+use Palacios\Framework\WebApplicationBuilder;
 use PHPUnit\Framework\TestCase;
 
 final class ConventionBindingTest extends TestCase

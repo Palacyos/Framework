@@ -1,15 +1,14 @@
 {
-    "name": "seu-usuario/php-mvc-skeleton",
+    "name": "palacios/framework",
     "description": "Framework MVC para PHP 8.5 inspirado no pipeline do ASP.NET Core",
     "license": "MIT",
-    "type": "project",
+    "type": "library",
     "require": {
         "php": "^8.5",
         "ext-json": "*",
         "ext-mbstring": "*",
         "ext-pdo": "*",
-        "ext-session": "*",
-        "vlucas/phpdotenv": "^5.6"
+        "ext-session": "*"
     },
     "require-dev": {
         "phpstan/phpstan": "^2.1",
@@ -17,12 +16,12 @@
     },
     "autoload": {
         "psr-4": {
-            "App\\": "app/"
-        },
-        "files": [
-            "app/Support/helpers.php"
-        ]
+            "Palacios\\Framework\\": "src/"
+        }
     },
+    "bin": [
+        "bin/framework"
+    ],
     "scripts": {
         "test": "phpunit",
         "test:smoke": "php tests/run.php",

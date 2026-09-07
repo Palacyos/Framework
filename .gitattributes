@@ -1,0 +1,10 @@
+/template export-ignore
+/tests export-ignore
+/.idea export-ignore
+/.phpstan-cache export-ignore
+/.phpunit.cache export-ignore
+/phpstan.neon export-ignore
+/phpunit.xml export-ignore
+/composer.lock export-ignore
+/Dockerfile export-ignore
+/docker-compose.yml export-ignore

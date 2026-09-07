@@ -1,0 +1,5 @@
+<?php
+declare(strict_types=1);
+namespace Palacios\Framework\Binding\Attributes;
+#[\Attribute(\Attribute::TARGET_PARAMETER)]
+final readonly class FromForm { public function __construct(public ?string $name = null) {} }

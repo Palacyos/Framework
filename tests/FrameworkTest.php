@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-use App\Core\Health\HealthCheckResult;
-use App\Core\Health\HealthCheckService;
-use App\Core\Results\Results;
-use App\Core\Testing\WebApplicationFactory;
-use App\Core\WebApplication;
+use Palacios\Framework\Health\HealthCheckResult;
+use Palacios\Framework\Health\HealthCheckService;
+use Palacios\Framework\Results\Results;
+use Palacios\Framework\Testing\WebApplicationFactory;
+use Palacios\Framework\WebApplication;
 use PHPUnit\Framework\TestCase;
 
 final class FrameworkTest extends TestCase

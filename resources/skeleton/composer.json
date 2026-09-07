@@ -1,0 +1,37 @@
+{
+    "name": "palacios/framework-app",
+    "description": "Template de aplica\u00e7\u00e3o para o Palacios Framework",
+    "license": "MIT",
+    "type": "project",
+    "require": {
+        "php": "^8.5",
+        "palacios/framework": "dev-main",
+        "vlucas/phpdotenv": "^5.6"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "..",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        },
+        "files": [
+            "app/Support/helpers.php"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "scripts": {
+        "test:smoke": "php tests/smoke.php"
+    }
+}

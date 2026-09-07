@@ -1,640 +1,339 @@
-# PHP Framework
+# Palacios Framework
 
-Framework MVC minimalista em PHP 8.2+ — Builder pattern, pipeline de middleware com `next()`, `IActionResult`, DI com lifetimes e binding automático de parâmetros de rota.
+Framework web MVC para PHP 8.5, inspirado no fluxo de configuração e no pipeline do ASP.NET Core.
 
-## Stack
+O Core é instalado pelo Composer em `vendor/palacios/framework`. A aplicação mantém apenas controllers, models, services, repositories, views e seu arquivo de bootstrap.
 
-- PHP 8.2+
-- Tailwind CSS 4
-- MySQL / MariaDB
-- Docker
-- Composer
+> Estado: pré-release. A primeira versão pública planejada é `v0.1.0`.
 
----
+## Requisitos
 
-## Estrutura de diretórios
+- PHP 8.5
+- Composer 2
+- Extensões `json`, `mbstring`, `PDO` e `session`
+- Um driver PDO compatível com o banco utilizado
 
-```
-public/
-└── index.php               Ponto de entrada — equivalente ao Program.cs do .NET
+## Criando uma aplicação
 
-app/
-├── Controllers/            Recebem dependências via construtor (autowiring automático)
-├── Core/
-│   ├── App.php             Fábrica do WebApplicationBuilder
-│   ├── Auth.php            Autenticação via sessão
-│   ├── Connection.php      Singleton PDO
-│   ├── Container.php       IoC Container com autowiring, Singleton/Scoped/Transient
-│   ├── Csrf.php            Geração e verificação de token CSRF
-│   ├── Results/            IActionResult e implementações (View, Json, Redirect…)
-│   ├── Router.php          Roteador com pipeline de middleware e binding de params
-│   ├── ServiceCollection.php  Registro de serviços com lifetime
-│   ├── Session.php         Wrapper de sessão
-│   ├── View.php            Renderização de views com layouts
-│   ├── WebApplication.php  App construído — mapGet/Post/Put/Delete/Patch + run()
-│   └── WebApplicationBuilder.php  Builder — services() + build()
-├── Middlewares/            AuthMiddleware, CsrfMiddleware
-├── Models/                 Apenas propriedades — sem queries
-├── Repositories/
-│   ├── Interfaces/         Contratos (IUserRepository.php, etc.)
-│   └── *Repository.php     Implementações concretas com PDO
-└── Support/
-    └── helpers.php         csrf_input(), e(), redirect()
-```
-
----
-
-## Instalação
+Após a publicação no Packagist:
 
 ```bash
-# 1. Instalar dependências PHP
-composer install
-
-# 2. Instalar dependências front-end
-npm install
-
-# 3. Configurar ambiente
-cp .env.example .env
-# Edite o .env com suas credenciais de banco
-
-# 4. Subir com Docker
-docker-compose up -d
-
-# 5. Compilar CSS
-npm run dev    # modo watch
-npm run build  # produção
+composer global require palacios/framework:^0.1
+framework new MinhaAplicacao
+cd MinhaAplicacao
+php -S localhost:8000 -t public
 ```
 
----
+Durante o desenvolvimento deste repositório:
 
-## O ponto de entrada — `public/index.php`
+```bash
+composer install
+php bin/framework new MinhaAplicacao --no-install
+```
 
-É aqui que tudo é configurado: serviços, middleware e rotas.
+O comando `new` copia o skeleton, cria `.env`, gera `APP_KEY`, remove a configuração local de desenvolvimento e, salvo com `--no-install`, executa o Composer.
+
+## Estrutura da aplicação
+
+```text
+MinhaAplicacao/
+├── app/
+│   ├── Controllers/
+│   ├── Models/
+│   ├── Repositories/
+│   │   └── Interfaces/
+│   ├── Services/
+│   ├── Middleware/
+│   └── Views/
+├── bootstrap/
+│   └── app.php
+├── database/
+│   └── migrations/
+├── public/
+│   └── index.php
+├── resources/
+├── tests/
+├── .env
+└── composer.json
+```
+
+`bootstrap/app.php` equivale, conceitualmente, ao `Program.cs`: registra serviços, monta o pipeline e mapeia endpoints. `public/index.php` é somente o ponto de entrada HTTP.
+
+## Bootstrap
 
 ```php
 <?php
-// public/index.php
 
-$builder = App::createBuilder();
+use Palacios\Framework\App;
+use Palacios\Framework\Hosting\ApplicationEnvironment;
+use Palacios\Framework\Security\Authentication\AuthenticationOptions;
+use Palacios\Framework\Security\Authorization\AuthorizationOptions;
+use Palacios\Framework\Security\Authorization\PolicyBuilder;
 
-// ── Registrar serviços ────────────────────────────────────────────────────────
-$builder->services()->addSingleton(IUserRepository::class, UserRepository::class);
-$builder->services()->addScoped(IOrderRepository::class, OrderRepository::class);
+$environment = $_ENV['APP_ENV'] ?? ApplicationEnvironment::PRODUCTION;
+$builder = App::createBuilder(dirname(__DIR__), (string) $environment);
+
+$builder->services()
+    ->addControllers()
+    ->addViews()
+    ->addAuthentication(
+        static fn (AuthenticationOptions $options) => $options
+            ->loginPath('/login')
+            ->accessDeniedPath('/acesso-negado'),
+    )
+    ->addAuthorization(
+        static fn (AuthorizationOptions $options) => $options
+            ->addPolicy('admin', static fn (PolicyBuilder $policy) => $policy
+                ->requireAuthenticatedUser()
+                ->requireRole('admin')),
+    );
 
 $app = $builder->build();
 
-// ── Middleware global (executado em todas as rotas) ───────────────────────────
-$app->use(CsrfMiddleware::class);
-
-// ── Rotas ─────────────────────────────────────────────────────────────────────
-$app->mapGet('/',       fn () => new RedirectResult('/home'));
-$app->mapGet('/home',   [HomeController::class, 'index']);
-$app->mapGet('/users/{id}', [UserController::class, 'show'], [AuthMiddleware::class]);
-$app->mapPost('/users',     [UserController::class, 'store']);
-
-$app->run();
-```
-
----
-
-## Injeção de Dependência
-
-O container resolve dependências automaticamente via Reflection (autowiring). Você registra interfaces com três lifetimes possíveis:
-
-| Método | Comportamento | Equivalente .NET |
-|---|---|---|
-| `addSingleton` | Uma única instância por toda a vida da aplicação | `AddSingleton` |
-| `addScoped` | Uma instância por requisição HTTP | `AddScoped` |
-| `addTransient` | Nova instância a cada resolução | `AddTransient` |
-
-```php
-$builder->services()->addSingleton(IUserRepository::class, UserRepository::class);
-$builder->services()->addScoped(IUserRepository::class, UserRepository::class);
-$builder->services()->addTransient(IUserRepository::class, UserRepository::class);
-
-// Também aceita closure para lógica customizada:
-$builder->services()->addSingleton(
-    IMailer::class,
-    fn (Container $c) => new SmtpMailer($_ENV['MAIL_HOST'])
-);
-```
-
-Controllers e suas dependências são resolvidos automaticamente — basta declarar no construtor:
-
-```php
-final class UserController
-{
-    public function __construct(
-        private IUserRepository $users  // injetado automaticamente
-    ) {}
+if ($builder->environment->isDevelopment()) {
+    $app->useDevelopmentExceptionPage();
+} else {
+    $app->useExceptionHandler();
 }
+
+$app->useRequestLogging();
+$app->useAntiforgery();
+$app->useAuthentication();
+$app->useAuthorization();
+$app->mapControllers();
+
+return $app;
 ```
 
----
+A ordem de `use*()` define a ordem do pipeline.
 
-## Rotas e binding de parâmetros
-
-Rotas são registradas no `index.php` com os métodos `map*`. Parâmetros de rota entre `{chaves}` são injetados diretamente nos parâmetros da action com cast automático de tipo:
+## Injeção de dependência
 
 ```php
-$app->mapGet('/users/{id}',           [UserController::class, 'show']);
-$app->mapGet('/posts/{slug}/edit',    [PostController::class, 'edit']);
-$app->mapPost('/users',               [UserController::class, 'store']);
-$app->mapPut('/users/{id}',           [UserController::class, 'update']);
-$app->mapDelete('/users/{id}',        [UserController::class, 'destroy']);
-$app->mapPatch('/users/{id}/status',  [UserController::class, 'patchStatus']);
+$builder->services()
+    ->addSingleton(Cache::class, Cache::class)
+    ->addScoped(IUserRepository::class, UserRepository::class)
+    ->addTransient(Mailer::class, Mailer::class);
 ```
 
-```php
-// A rota /users/{id} injeta $id automaticamente — sem precisar de $params['id']
-public function show(int $id): IActionResult
-{
-    $user = $this->users->findById($id);
-    return new ViewResult('users/show', ['user' => $user]);
-}
-```
+- `addSingleton`: uma instância durante a aplicação.
+- `addScoped`: uma instância por requisição.
+- `addTransient`: uma nova instância por resolução.
 
-Serviços também podem ser injetados diretamente nos parâmetros de closures (rotas inline):
+Controllers, handlers e seus parâmetros recebem dependências tipadas automaticamente.
+
+## Controllers declarativos
 
 ```php
-$app->mapGet('/ping', fn (IUserRepository $users) => new JsonResult($users->count()));
-```
-
-### Middleware por rota
-
-Passe um array de middlewares como terceiro argumento. Eles são executados após o middleware global, antes da action:
-
-```php
-$app->mapGet('/admin', [AdminController::class, 'index'], [
-    AuthMiddleware::class,
-    new AuthMiddleware(['admin']),  // ou instância direta com argumentos
-]);
-```
-
----
-
-## Controllers
-
-Controllers são classes PHP simples. Declare dependências no construtor e retorne um `IActionResult` nas actions:
-
-```php
-final class UserController
-{
-    public function __construct(
-        private IUserRepository $users
-    ) {}
-
-    public function index(): IActionResult
-    {
-        $users = $this->users->all();
-        return new ViewResult('users/index', ['users' => $users]);
-    }
-
-    public function show(int $id): IActionResult
-    {
-        $user = $this->users->findById($id);
-        return new ViewResult('users/show', ['user' => $user]);
-    }
-
-    public function store(): IActionResult
-    {
-        $this->users->create($_POST);
-        return new RedirectResult('/users');
-    }
-
-    public function destroy(int $id): IActionResult
-    {
-        $this->users->delete($id);
-        return new JsonResult(['deleted' => true]);
-    }
-}
-```
-
----
-
-## IActionResult
-
-Todos os resultados de action implementam `IActionResult`. Os disponíveis:
-
-### `ViewResult` — renderiza uma view com layout
-
-```php
-return new ViewResult('users/index');
-return new ViewResult('users/show', ['user' => $user]);
-return new ViewResult('users/show', ['user' => $user], layout: 'auth'); // layout alternativo
-```
-
-### `JsonResult` — resposta JSON
-
-```php
-return new JsonResult(['id' => 1, 'name' => 'Thales']);
-return new JsonResult(['error' => 'Not found'], status: 404);
-```
-
-### `RedirectResult` — redirecionamento HTTP
-
-```php
-return new RedirectResult('/home');
-return new RedirectResult('/login', status: 301);
-```
-
-### `ContentResult` — texto ou HTML livre
-
-```php
-return new ContentResult('Hello, world!');
-return new ContentResult('<b>ok</b>', contentType: 'text/html');
-```
-
-### `NotFoundResult` — 404
-
-```php
-return new NotFoundResult();
-return new NotFoundResult('Usuário não encontrado');
-```
-
----
-
-## Views
-
-Views ficam em `app/Views/` e são arquivos PHP puros. Variáveis passadas pelo controller ficam disponíveis diretamente:
-
-```php
-// Controller:
-return new ViewResult('users/show', ['user' => $user, 'title' => 'Perfil']);
-
-// app/Views/users/show.php:
-<h1><?= e($title) ?></h1>
-<p>Nome: <?= e($user->name) ?></p>
-```
-
-O conteúdo da view é injetado em `$content` dentro do layout:
-
-```php
-// app/Views/layouts/app.php:
-<!doctype html>
-<html lang="pt-br">
-<head>
-    <title>App</title>
-    <link rel="stylesheet" href="/assets/css/app.css">
-</head>
-<body>
-    <?= $content ?>
-</body>
-</html>
-```
-
-Layouts ficam em `app/Views/layouts/`. O padrão é `app`. Para usar outro:
-
-```php
-return new ViewResult('auth/login', [], layout: 'auth');
-```
-
----
-
-## Middleware
-
-Middlewares implementam um método `handle(callable $next): void`. Chame `$next()` para passar para o próximo estágio do pipeline. Não chamar `$next()` interrompe a requisição.
-
-```php
-final class AuthMiddleware
-{
-    public function handle(callable $next): void
-    {
-        if (!Auth::check()) {
-            (new RedirectResult('/login'))->execute();
-        }
-
-        $next(); // continua para o próximo middleware ou para a action
-    }
-}
-```
-
-Pipeline com múltiplos middlewares — a ordem de execução segue a ordem de registro:
-
-```php
-// Ordem: LogMiddleware → AuthMiddleware → action
-$app->mapGet('/dashboard', [DashboardController::class, 'index'], [
-    LogMiddleware::class,
-    AuthMiddleware::class,
-]);
-```
-
-O middleware global (via `$app->use()`) sempre executa antes dos middlewares de rota.
-
----
-
-## Autenticação
-
-```php
-// Login
-Auth::login(id: $user->id, type: 'admin', extra: ['name' => $user->name]);
-
-// Logout
-Auth::logout();
-
-// Verificações
-Auth::check();           // bool — usuário está logado?
-Auth::id();              // ?int — ID do usuário logado
-Auth::type();            // ?string — tipo do usuário ('admin', 'user', etc.)
-Auth::is('admin');       // bool — é do tipo especificado?
-```
-
-### Proteger rotas com `AuthMiddleware`
-
-```php
-// Qualquer usuário autenticado:
-$app->mapGet('/dashboard', [DashboardController::class, 'index'], [AuthMiddleware::class]);
-
-// Apenas usuários do tipo 'admin':
-$app->mapGet('/admin', [AdminController::class, 'index'], [
-    new AuthMiddleware(['admin'])
-]);
-```
-
----
-
-## CSRF
-
-Adicione o token em todo formulário POST:
-
-```php
-<form method="POST" action="/users">
-    <?= csrf_input() ?>
-    <input type="text" name="name">
-    <button type="submit">Salvar</button>
-</form>
-```
-
-Proteja as rotas POST/PUT/PATCH/DELETE com `CsrfMiddleware`:
-
-```php
-$app->mapPost('/users', [UserController::class, 'store'], [CsrfMiddleware::class]);
-```
-
----
-
-## Helpers globais
-
-```php
-e($value)          // escapa HTML — use em todas as saídas de dados do usuário
-csrf_input()       // gera <input type="hidden" name="_csrf" value="...">
-redirect('/rota')  // redireciona e encerra — atalho para RedirectResult fora de controllers
-```
-
----
-
-## Como adicionar uma feature completa
-
-**Exemplo: CRUD de usuários**
-
-### 1. Model
-
-```php
-// app/Models/User.php
-final class User
-{
-    public function __construct(
-        public readonly int    $id,
-        public readonly string $name,
-        public readonly string $email,
-    ) {}
-}
-```
-
-### 2. Interface do repositório
-
-```php
-// app/Repositories/Interfaces/IUserRepository.php
-interface IUserRepository
-{
-    public function all(): array;
-    public function findById(int $id): ?User;
-    public function create(array $data): User;
-    public function delete(int $id): void;
-}
-```
-
-### 3. Repositório concreto
-
-```php
-// app/Repositories/UserRepository.php
-final class UserRepository implements IUserRepository
-{
-    public function __construct(private Connection $db) {}
-
-    public function all(): array
-    {
-        $stmt = $this->db->get()->query('SELECT * FROM users');
-        return $stmt->fetchAll(PDO::FETCH_CLASS, User::class);
-    }
-
-    public function findById(int $id): ?User
-    {
-        $stmt = $this->db->get()->prepare('SELECT * FROM users WHERE id = ?');
-        $stmt->execute([$id]);
-        return $stmt->fetchObject(User::class) ?: null;
-    }
-
-    // ...
-}
-```
-
-### 4. Registrar no container
-
-```php
-// public/index.php
-$builder->services()->addScoped(IUserRepository::class, UserRepository::class);
-```
-
-### 5. Controller
-
-```php
-// app/Controllers/UserController.php
-final class UserController
+<?php
+
+namespace App\Controllers;
+
+use Palacios\Framework\Results\IActionResult;
+use Palacios\Framework\Results\Results;
+use Palacios\Framework\Routing\Attributes\HttpGet;
+use Palacios\Framework\Routing\Attributes\Route;
+use Palacios\Framework\Security\Attributes\Authorize;
+
+#[Route('/users')]
+#[Authorize]
+final readonly class UsersController
 {
     public function __construct(private IUserRepository $users) {}
 
-    public function index(): IActionResult
-    {
-        return new ViewResult('users/index', ['users' => $this->users->all()]);
-    }
-
+    #[HttpGet('/{id:int}', name: 'users.show')]
     public function show(int $id): IActionResult
     {
-        $user = $this->users->findById($id);
-        return $user
-            ? new ViewResult('users/show', ['user' => $user])
-            : new NotFoundResult('Usuário não encontrado');
+        return Results::json($this->users->find($id));
     }
 }
 ```
 
-### 6. Rotas
+`addControllers()` descobre controllers em `app/Controllers`; `mapControllers()` registra as rotas encontradas.
+
+## Binding e validação
+
+Por convenção, valores tipados são obtidos da rota, query string, formulário, JSON ou container. Os atributos abaixo existem para remover ambiguidades:
+
+- `#[FromRoute]`
+- `#[FromQuery]`
+- `#[FromForm]`
+- `#[FromBody]`
+- `#[FromHeader]`
+- `#[FromServices]`
+
+DTOs são opcionais. Interfaces, repositories e services podem ser utilizados diretamente. Quando um DTO é usado, as regras `Required`, `EmailAddress` e `StringLength` alimentam o `ModelState`.
+
+O campo antiforgery não participa da hidratação de modelos tipados, portanto não precisa ser removido manualmente no controller.
+
+## Minimal APIs e grupos de rotas
 
 ```php
-// public/index.php
-$app->mapGet('/users',      [UserController::class, 'index'], [AuthMiddleware::class]);
-$app->mapGet('/users/{id}', [UserController::class, 'show'],  [AuthMiddleware::class]);
+$app->mapGet('/users/{id:int}', [UsersController::class, 'show'])
+    ->withName('users.show')
+    ->requireAuthorization('admin')
+    ->withTags('Users')
+    ->withSummary('Obtém um usuário')
+    ->produces(200, 'application/json');
+
+$url = $app->urlFor('users.show', ['id' => 42]);
 ```
 
-### 7. Views
-
-```
-app/Views/users/index.php
-app/Views/users/show.php
-```
-
----
-
-## Banco de dados
-
-`Connection` é um Singleton que entrega uma instância PDO configurada via `.env`:
+Grupos compartilham prefixo, middleware e metadados e podem ser aninhados:
 
 ```php
-final class UserRepository
-{
-    public function __construct(private Connection $db) {}
+$api = $app->mapGroup('/api')
+    ->addMiddleware(ApiMiddleware::class)
+    ->requireAuthorization()
+    ->withTags('API');
 
-    public function findById(int $id): ?User
-    {
-        $stmt = $this->db->get()->prepare('SELECT * FROM users WHERE id = ?');
-        $stmt->execute([$id]);
-        return $stmt->fetchObject(User::class) ?: null;
-    }
-}
+$v1 = $api->mapGroup('/v1');
+$v1->mapGet('/users', [UsersController::class, 'index']);
+$v1->mapGet('/status', static fn () => Results::ok(['status' => 'ok']))
+    ->allowAnonymous();
 ```
 
-Variáveis de ambiente necessárias no `.env`:
+Rotas com o mesmo método e caminho, nomes duplicados e prefixos inválidos são rejeitados durante o registro.
 
-```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=meu_banco
-DB_USER=root
-DB_PASS=senha
-```
-## Fluxo profissional no PHP 8.5
-
-O requisito mínimo atual é PHP 8.5. O runtime segue o mesmo modelo mental do ASP.NET Core:
-
-```text
-WebApplicationBuilder
-  → ServiceCollection / Container
-  → WebApplication
-  → HttpContext
-  → Middleware
-  → Endpoint metadata
-  → Authentication / Authorization
-  → Model binding / ModelState
-  → Action filters
-  → Controller
-  → Result filters
-  → IActionResult / HttpResponse
-```
-
-### Bootstrap recomendado
+## Autenticação e autorização
 
 ```php
-$builder = App::createBuilder();
+$builder->services()
+    ->addAuthentication()
+    ->addAuthorization();
+
 $app = $builder->build();
+$app->useAuthentication();
+$app->useAuthorization();
 
-$options = new AuthorizationOptions();
-$options->addPolicy('users.write', static fn (PolicyBuilder $policy) => $policy
-    ->requireAuthenticatedUser()
-    ->requireRole('admin')
-    ->requireClaim('permission', 'users.write'));
-
-$app->use(RequestLoggingMiddleware::class);
-$app->use(CsrfMiddleware::class);
-$app->use(AuthenticationMiddleware::class);
-$app->use(new AuthorizationMiddleware($options));
-
-$app->mapControllers([
-    UserController::class,
-]);
-
-$app->run();
+$app->mapGet('/private', $handler)->requireAuthorization();
+$app->mapGet('/admin', $handler)->requireAuthorization('admin');
+$app->mapGet('/public', $handler)->allowAnonymous();
 ```
 
-Registre middlewares globais antes de mapear controllers, pois a ordem é preservada no endpoint.
+Sem caminhos de interface configurados, falhas retornam `401` ou `403`. Com `loginPath()` e `accessDeniedPath()`, aplicações MVC recebem redirects.
 
-### Controller declarativo e DTO
+## Banco de dados e views
 
 ```php
-#[ApiController]
-#[Route('/users')]
-final class UserController
-{
-    #[Authorize(policy: 'users.write')]
-    #[HttpPost(name: 'users.store')]
-    public function store(
-        #[FromForm] CreateUserRequest $request
-    ): IActionResult {
-        return Results::created('/users/1', $request);
+$builder->services()
+    ->addViews(
+        static fn (ViewOptions $options) => $options
+            ->path('app/Views')
+            ->defaultLayout('app'),
+    )
+    ->addDatabase(
+        static fn (DatabaseOptions $options) => $options
+            ->dsn($_ENV['DB_DSN'])
+            ->username($_ENV['DB_USERNAME'])
+            ->password($_ENV['DB_PASSWORD']),
+    );
+```
+
+Repositories podem receber `PDO` pelo construtor. O Core não lê variáveis de ambiente diretamente durante o bootstrap web.
+
+## CLI e geradores
+
+```bash
+framework make:controller Admin/Users
+framework make:model User
+framework make:service User
+framework make:repository User
+framework make:middleware RequestTrace
+framework make:migration CreateUsers
+```
+
+Os geradores criam namespaces PSR-4 e nunca sobrescrevem arquivos existentes. `make:repository` cria a interface e sua implementação.
+
+## Migrations
+
+Uma migration retorna um objeto que implementa `Migration`:
+
+```php
+<?php
+
+use Palacios\Framework\Database\Migration;
+
+return new class implements Migration {
+    public function up(PDO $connection): void
+    {
+        $connection->exec('CREATE TABLE users (id INTEGER PRIMARY KEY)');
     }
-}
 
-final readonly class CreateUserRequest
-{
-    public function __construct(
-        #[Required, StringLength(max: 120)]
-        public string $name,
-
-        #[Required, EmailAddress]
-        public string $email,
-    ) {}
-}
+    public function down(PDO $connection): void
+    {
+        $connection->exec('DROP TABLE users');
+    }
+};
 ```
 
-O binder copia somente campos declarados no DTO. Campos de infraestrutura como `_csrf` e campos desconhecidos não chegam ao controller.
+Aplique migrations pendentes com:
 
-#### Binding convencional sem atributos
+```bash
+framework database:update
+```
 
-Em ações bem tipadas, os atributos de origem são opcionais na maioria dos casos:
+A CLI usa `DB_DSN` ou monta a conexão com `DB_DRIVER`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` e `DB_PASSWORD`. O histórico fica em `framework_migrations`.
+
+## Resultados HTTP
+
+Handlers podem retornar implementações de `IActionResult` usando `Results`:
 
 ```php
-public function create(
-    CreateUserRequest $request,
-    UserService $service,
-): IActionResult {
-    return Results::created('/users', $service->create($request));
-}
+return Results::ok($value);
+return Results::json($value);
+return Results::created('/users/1', $value);
+return Results::noContent();
+return Results::badRequest($errors);
+return Results::unauthorized();
+return Results::forbid();
+return Results::notFound();
+return Results::redirect('/login');
+return Results::view('users/index', ['users' => $users]);
 ```
 
-A resolução segue esta prioridade:
+Exceções são convertidas para `application/problem+json`. Detalhes internos aparecem somente com a página de desenvolvimento habilitada.
 
-1. atributo explícito (`FromBody`, `FromForm`, `FromRoute`, `FromQuery`, `FromHeader` ou `FromServices`);
-2. tipo registrado no container, tratado como service;
-3. objeto JSON, quando o corpo ou o content type indica JSON;
-4. objeto de formulário, quando há campos enviados;
-5. parâmetros simples encontrados na rota e depois na query string.
+## Testes
 
-Os atributos continuam disponíveis para eliminar ambiguidades. Services usados como parâmetros de actions devem ser registrados no container. `#[FromBody] array` também é suportado para quem prefere validação manual.
-
-### Testes HTTP em memória
+```bash
+composer test
+composer analyse
+composer test:smoke
+composer check
+```
 
 ```php
 $factory = new WebApplicationFactory(
     static function (WebApplication $app): void {
         $app->mapGet('/ping', static fn () => Results::json(['status' => 'ok']));
-    }
+    },
 );
 
 $response = $factory->createClient()->get('/ping');
-
-assert($response->statusCode() === 200);
-assert(json_decode($response->body(), true) === ['status' => 'ok']);
 ```
 
-### Qualidade
+O projeto usa PHPUnit 12, PHPStan no nível máximo e smoke tests sem servidor HTTP externo.
 
-Após instalar as dependências:
+## Desenvolvimento do framework
 
 ```bash
-composer test
-composer analyse
+composer install
 composer check
+composer test:smoke
+
+cd template
+composer install
 composer test:smoke
 ```
 
-O projeto inclui configuração para PHPUnit 12, PHPStan no nível máximo, smoke tests, logging JSON estruturado e health checks.
+- `src/`: Core distribuído pelo Composer.
+- `resources/skeleton/`: aplicação copiada por `framework new`.
+- `template/`: aplicação local de desenvolvimento, não incluída no pacote.
+- `tests/`: testes do Core, não incluídos no pacote.
+
+## Versionamento
+
+Enquanto a API estiver em `0.x`, mudanças incompatíveis podem ocorrer em versões menores. A partir de `1.0.0`, o projeto seguirá Semantic Versioning.
+
+Consulte [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md) e [LICENSE](LICENSE).
