@@ -1,6 +1,6 @@
 # Palacios Framework
 
-Framework web MVC para PHP 8.5, inspirado no fluxo de configuração e no pipeline do ASP.NET Core.
+Framework web MVC para PHP 8.5.
 
 O Core é instalado pelo Composer em `vendor/palacios/framework`. A aplicação mantém apenas controllers, models, services, repositories, views e seu arquivo de bootstrap.
 
