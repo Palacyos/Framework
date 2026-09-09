@@ -45,6 +45,41 @@ final class CliTest extends TestCase
         );
     }
 
+    public function testComposerProxyCanRunInstalledFrameworkBinary(): void
+    {
+        $proxy = $this->temporaryDirectory . '/composer-proxy.php';
+        $autoload = var_export(dirname(__DIR__) . '/vendor/autoload.php', true);
+        $binary = var_export(dirname(__DIR__) . '/bin/framework', true);
+        file_put_contents($proxy, <<<PHP
+<?php
+\$GLOBALS['_composer_autoload_path'] = {$autoload};
+\$argv = ['framework', 'new', 'ProxyApp', '--no-install'];
+require {$binary};
+PHP);
+
+        $process = proc_open(
+            [PHP_BINARY, $proxy],
+            [
+                0 => ['pipe', 'r'],
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $this->temporaryDirectory,
+        );
+        self::assertIsResource($process);
+
+        fclose($pipes[0]);
+        $output = stream_get_contents($pipes[1]);
+        $errors = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        self::assertSame(0, proc_close($process), $errors ?: $output);
+        self::assertFileExists($this->temporaryDirectory . '/ProxyApp/bootstrap/app.php');
+        self::assertStringContainsString('Projeto criado', $output);
+    }
+
     public function testGeneratorsCreateNamespacedApplicationFiles(): void
     {
         chdir($this->temporaryDirectory);

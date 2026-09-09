@@ -5,7 +5,10 @@ declare(strict_types=1);
 
 use Palacios\Framework\Console\ConsoleApplication;
 
-$autoload = dirname(__DIR__) . '/vendor/autoload.php';
+$composerAutoload = $GLOBALS['_composer_autoload_path'] ?? null;
+$autoload = is_string($composerAutoload)
+    ? $composerAutoload
+    : dirname(__DIR__) . '/vendor/autoload.php';
 if (!is_file($autoload)) {
     fwrite(STDERR, "Dependências não instaladas. Execute composer install.\n");
     exit(1);

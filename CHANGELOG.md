@@ -6,6 +6,12 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-09
+
+### Fixed
+
+- CLI instalada pelo Composer agora localiza corretamente o autoloader do projeto consumidor.
+
 ## [0.1.0] - 2026-09-07
 
 Primeira versão pública.
