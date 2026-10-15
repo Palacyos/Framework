@@ -10,8 +10,7 @@ final readonly class RequestLoggingMiddleware
     public function handle(HttpContext $context, callable $next): void
     {
         $started = hrtime(true);
-        try { $next(); }
-        finally {
+        $context->response->onCompleted(function () use ($context, $started): void {
             $this->logger->info('HTTP request completed', [
                 'traceId' => $context->traceId,
                 'method' => $context->request->method,
@@ -19,6 +18,7 @@ final readonly class RequestLoggingMiddleware
                 'statusCode' => $context->response->statusCode(),
                 'elapsedMs' => round((hrtime(true) - $started) / 1_000_000, 2),
             ]);
-        }
+        });
+        $next();
     }
 }

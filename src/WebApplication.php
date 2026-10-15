@@ -235,28 +235,39 @@ final class WebApplication
         try {
             $router->dispatch($context);
         } catch (\Throwable $exception) {
-            $filters = new FilterPipeline($context->services);
-            $filteredResult = $filters->handleException($context, $exception);
-            if ($filteredResult !== null) {
-                $filters->invokeResult($context, $filteredResult);
-                return $context->response;
+            $this->handleException($context, $exception);
+        } finally {
+            try {
+                $context->response->complete();
+            } catch (\Throwable $exception) {
+                $this->handleException($context, $exception);
             }
-
-            $status = $exception instanceof HttpException ? $exception->statusCode : 500;
-            $problem = new ProblemDetails(
-                status: $status,
-                title: $status === 500 ? 'Erro interno do servidor' : $exception->getMessage(),
-                detail: $this->includeExceptionDetails ? $exception->getMessage() : null,
-                traceId: $context->traceId,
-                errors: $exception instanceof HttpException ? $exception->errors : [],
-            );
-            $context->response
-                ->status($status)
-                ->header('Content-Type', 'application/problem+json; charset=utf-8')
-                ->write(json_encode($problem, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
         }
 
         return $context->response;
+    }
+
+    private function handleException(HttpContext $context, \Throwable $exception): void
+    {
+        $filters = new FilterPipeline($context->services);
+        $filteredResult = $filters->handleException($context, $exception);
+        if ($filteredResult !== null) {
+            $filters->invokeResult($context, $filteredResult);
+            return;
+        }
+
+        $status = $exception instanceof HttpException ? $exception->statusCode : 500;
+        $problem = new ProblemDetails(
+            status: $status,
+            title: $status === 500 ? 'Erro interno do servidor' : $exception->getMessage(),
+            detail: $this->includeExceptionDetails ? $exception->getMessage() : null,
+            traceId: $context->traceId,
+            errors: $exception instanceof HttpException ? $exception->errors : [],
+        );
+        $context->response
+            ->status($status)
+            ->header('Content-Type', 'application/problem+json; charset=utf-8')
+            ->write(json_encode($problem, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
     }
 
     public function run(): void

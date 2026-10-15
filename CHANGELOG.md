@@ -6,6 +6,12 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-15
+
+### Fixed
+
+- O logging de requisições agora registra o status HTTP final, inclusive após antiforgery, exceções e filtros de exceção.
+
 ## [0.1.1] - 2026-09-09
 
 ### Fixed
