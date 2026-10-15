@@ -123,7 +123,13 @@ final class Container
                 );
             }
 
-            $args[] = $this->make($type->getName());
+            $dependency = $type->getName();
+            if (!$this->has($dependency) && $param->isDefaultValueAvailable()) {
+                $args[] = $param->getDefaultValue();
+                continue;
+            }
+
+            $args[] = $this->make($dependency);
         }
 
         return $ref->newInstanceArgs($args);

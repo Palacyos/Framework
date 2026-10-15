@@ -1,10 +1,12 @@
 <?php
 declare(strict_types=1);
 
+use Palacios\Framework\App;
 use Palacios\Framework\Binding\Attributes\FromBody;
 use Palacios\Framework\Binding\Attributes\FromForm;
 use Palacios\Framework\Binding\Attributes\FromRoute;
 use Palacios\Framework\Csrf;
+use Palacios\Framework\Http\HttpRequest;
 use Palacios\Framework\Results\IActionResult;
 use Palacios\Framework\Results\Results;
 use Palacios\Framework\Routing\Attributes\ApiController;
@@ -22,6 +24,18 @@ use PHPUnit\Framework\TestCase;
 
 final class IntegrationTest extends TestCase
 {
+    public function testAuthorizationMiddlewareUsesTypedConstructorDefaults(): void
+    {
+        $app = App::createBuilder()->build();
+        $app->useAuthorization();
+        $app->mapGet('/private', static fn (): IActionResult => Results::ok())
+            ->requireAuthorization();
+
+        $response = $app->handle(new HttpRequest('GET', '/private'));
+
+        self::assertSame(401, $response->statusCode());
+    }
+
     public function testFormBindingDoesNotExposeAntiforgeryFieldToDto(): void
     {
         $token = Csrf::token();

@@ -18,7 +18,53 @@ use PHPUnit\Framework\TestCase;
 
 final class RequestLoggingMiddlewareTest extends TestCase
 {
-    public function testPublicApiLogsSuccessfulResponseWithFinalStatusAndFieldsOnce(): void
+    public function testPublicApiUsesDefaultLoggerWithoutManualRegistration(): void
+    {
+        $logFile = tempnam(sys_get_temp_dir(), 'palacios-http-log-');
+        self::assertNotFalse($logFile);
+        $previousErrorLog = ini_get('error_log');
+        self::assertNotFalse($previousErrorLog);
+        ini_set('error_log', $logFile);
+
+        try {
+            $app = App::createBuilder()->build();
+            $app->useRequestLogging();
+            $app->mapGet('/default-logger', static fn () => Results::ok());
+
+            $response = $app->handle(new HttpRequest('GET', '/default-logger'));
+
+            self::assertSame(200, $response->statusCode());
+            $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            self::assertIsArray($lines);
+            self::assertCount(1, $lines);
+            $jsonStart = strpos($lines[0], '{');
+            self::assertNotFalse($jsonStart);
+            $record = json_decode(substr($lines[0], $jsonStart), true, 512, JSON_THROW_ON_ERROR);
+            self::assertIsArray($record);
+            self::assertSame('INFORMATION', $record['level']);
+            self::assertSame('HTTP', $record['category']);
+            self::assertSame('HTTP request completed', $record['message']);
+            $context = $record['context'];
+            self::assertIsArray($context);
+            self::assertSame('GET', $context['method']);
+            self::assertSame('/default-logger', $context['path']);
+            self::assertSame(200, $context['statusCode']);
+            $traceId = $context['traceId'];
+            self::assertIsString($traceId);
+            self::assertMatchesRegularExpression('/^[a-f0-9]{16}$/', $traceId);
+            self::assertIsFloat($context['elapsedMs']);
+            self::assertGreaterThanOrEqual(0.0, $context['elapsedMs']);
+            self::assertSame(
+                ['traceId', 'method', 'path', 'statusCode', 'elapsedMs'],
+                array_keys($context),
+            );
+        } finally {
+            ini_set('error_log', $previousErrorLog);
+            unlink($logFile);
+        }
+    }
+
+    public function testApplicationLoggerRegistrationOverridesDefaultAndReceivesOneRecord(): void
     {
         [$response, $logger] = $this->execute(
             new HttpRequest('GET', '/ok'),

@@ -6,6 +6,12 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-15
+
+### Fixed
+
+- O container agora respeita dependências tipadas com valor padrão quando não há registro explícito, permitindo usar `useRequestLogging()` com o logger HTTP padrão e ainda substituí-lo pela aplicação.
+
 ## [0.1.2] - 2026-10-15
 
 ### Fixed

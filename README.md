@@ -384,6 +384,27 @@ $api = $app->mapGroup('/api')
 
 Use middleware para responsabilidades transversais, como logs, autenticação, autorização, antiforgery, cabeçalhos e tratamento de erros.
 
+### Logging de requisições
+
+Ative o registro de requisições antes de mapear as rotas ou controllers:
+
+```php
+$app->useRequestLogging();
+$app->mapControllers();
+```
+
+Sem configuração adicional, o framework registra uma linha JSON no log de erros do PHP usando a categoria `HTTP`. Para usar outra implementação, registre-a antes de construir a aplicação:
+
+```php
+use Palacios\Framework\Logging\Logger;
+
+$builder->services()->addSingleton(Logger::class, MyApplicationLogger::class);
+$app = $builder->build();
+$app->useRequestLogging();
+```
+
+A implementação personalizada deve implementar a interface `Logger`. O registro da aplicação sempre substitui o logger padrão do middleware.
+
 ## Banco de dados
 
 Configure o `.env`:
