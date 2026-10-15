@@ -74,6 +74,52 @@ final class RequestLoggingMiddlewareTest extends TestCase
         $this->assertSingleCompletedRequest($logger, $response, 'GET', '/ok', 200);
     }
 
+    public function testDoesNotDuplicateWhenMiddlewareIsAlsoRegisteredExplicitly(): void
+    {
+        $logger = new RequestLoggingMemoryLogger();
+        $app = $this->applicationWithLogger($logger);
+        $app->use(new RequestLoggingMiddleware($logger));
+        $app->mapGet('/single-log', static fn () => Results::ok());
+
+        $response = $app->handle(new HttpRequest('GET', '/single-log'));
+
+        $this->assertSingleCompletedRequest($logger, $response, 'GET', '/single-log', 200);
+    }
+
+    public function testLogsNotFoundOnceWhenPublicApiIsEnabledTwiceWithoutChangingResponse(): void
+    {
+        $logger = new RequestLoggingMemoryLogger();
+        $app = $this->applicationWithLogger($logger);
+        $app->useRequestLogging();
+        $app->mapGet('/known', static fn () => Results::ok());
+
+        $response = $app->handle(new HttpRequest('GET', '/missing'));
+
+        self::assertSame('404 Not Found', $response->body());
+        self::assertSame('text/plain; charset=utf-8', $response->headers()['Content-Type'] ?? null);
+        $this->assertSingleCompletedRequest($logger, $response, 'GET', '/missing', 404);
+    }
+
+    public function testLogsMethodNotAllowedWithFinalStatusOnceAndPreservesResponse(): void
+    {
+        $logger = new RequestLoggingMemoryLogger();
+        $app = $this->applicationWithLogger($logger);
+        $app->mapGet('/only-get', static fn () => Results::ok());
+
+        $response = $app->handle(new HttpRequest('POST', '/only-get'));
+
+        self::assertSame('GET', $response->headers()['Allow'] ?? null);
+        self::assertSame('application/problem+json; charset=utf-8', $response->headers()['Content-Type'] ?? null);
+        $this->assertSingleCompletedRequest($logger, $response, 'POST', '/only-get', 405);
+
+        $problem = json_decode($response->body(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($problem);
+        self::assertSame('about:blank', $problem['type'] ?? null);
+        self::assertSame('Método HTTP não permitido.', $problem['title'] ?? null);
+        self::assertSame(405, $problem['status'] ?? null);
+        self::assertSame($logger->records[0]['context']['traceId'], $problem['traceId'] ?? null);
+    }
+
     public function testLogsRedirectWithFinalStatusOnce(): void
     {
         [$response, $logger] = $this->execute(

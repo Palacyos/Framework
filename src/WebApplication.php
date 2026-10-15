@@ -29,6 +29,7 @@ final class WebApplication
     /** @var list<string|object> */
     private array $globalMiddleware = [];
     private bool $includeExceptionDetails = false;
+    private bool $requestLoggingEnabled = false;
 
     /** @param list<class-string> $discoveredControllers */
     public function __construct(
@@ -75,7 +76,8 @@ final class WebApplication
 
     public function useRequestLogging(): self
     {
-        return $this->use(RequestLoggingMiddleware::class);
+        $this->requestLoggingEnabled = true;
+        return $this;
     }
 
     /**
@@ -233,7 +235,7 @@ final class WebApplication
         $router = new Router($this->routes, $this->container);
 
         try {
-            $router->dispatch($context);
+            $this->dispatch($context, $router);
         } catch (\Throwable $exception) {
             $this->handleException($context, $exception);
         } finally {
@@ -245,6 +247,25 @@ final class WebApplication
         }
 
         return $context->response;
+    }
+
+    private function dispatch(HttpContext $context, Router $router): void
+    {
+        $next = static function () use ($router, $context): void {
+            $router->dispatch($context);
+        };
+
+        if (!$this->requestLoggingEnabled) {
+            $next();
+            return;
+        }
+
+        $middleware = $context->services->make(RequestLoggingMiddleware::class);
+        if (!$middleware instanceof RequestLoggingMiddleware) {
+            throw new \LogicException('O serviço de logging de requisições é inválido.');
+        }
+
+        $middleware->handle($context, $next);
     }
 
     private function handleException(HttpContext $context, \Throwable $exception): void

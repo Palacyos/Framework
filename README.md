@@ -386,7 +386,7 @@ Use middleware para responsabilidades transversais, como logs, autenticação, a
 
 ### Logging de requisições
 
-Ative o registro de requisições antes de mapear as rotas ou controllers:
+Ative o registro de requisições no bootstrap da aplicação:
 
 ```php
 $app->useRequestLogging();
@@ -404,6 +404,8 @@ $app->useRequestLogging();
 ```
 
 A implementação personalizada deve implementar a interface `Logger`. O registro da aplicação sempre substitui o logger padrão do middleware.
+
+O logging envolve todo o processamento HTTP, incluindo respostas `404` e `405`. Cada requisição gera um único registro com método, caminho, status final, duração e `traceId`; chamadas repetidas a `useRequestLogging()` não duplicam o registro.
 
 ## Banco de dados
 

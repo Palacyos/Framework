@@ -6,9 +6,17 @@ use Palacios\Framework\Logging\JsonConsoleLogger;
 use Palacios\Framework\Logging\Logger;
 final readonly class RequestLoggingMiddleware
 {
+    private const string CONTEXT_ITEM_KEY = self::class . '.registered';
+
     public function __construct(private Logger $logger = new JsonConsoleLogger('HTTP')) {}
     public function handle(HttpContext $context, callable $next): void
     {
+        if (($context->items[self::CONTEXT_ITEM_KEY] ?? false) === true) {
+            $next();
+            return;
+        }
+
+        $context->items[self::CONTEXT_ITEM_KEY] = true;
         $started = hrtime(true);
         $context->response->onCompleted(function () use ($context, $started): void {
             $this->logger->info('HTTP request completed', [
