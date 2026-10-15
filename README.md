@@ -309,6 +309,8 @@ No arquivo `app/Views/users/index.php`:
 
 O helper `e()` escapa conteúdo para HTML. Os layouts ficam, por padrão, em `app/Views/layouts`.
 
+Se a view ou o layout lançar uma exceção, o framework descarta o HTML parcial e encaminha a exceção ao tratamento global. Os buffers existentes antes da renderização são preservados. Templates que criam buffers adicionais devem mantê-los removíveis (o padrão de `ob_start()`) e não fechar os buffers do renderizador.
+
 ## Formulários e proteção antiforgery
 
 Ative o middleware antes de mapear os controllers:

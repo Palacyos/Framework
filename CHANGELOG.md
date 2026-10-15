@@ -6,6 +6,13 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-15
+
+### Fixed
+
+- A renderização de views e layouts descarta o HTML parcial e fecha os buffers abertos durante a renderização quando ocorre uma exceção, preservando a exceção original e os buffers externos.
+- Buffers aninhados deixados abertos pelo template são incorporados ao conteúdo na renderização bem-sucedida, sem vazamento de buffers.
+
 ## [0.1.5] - 2026-10-15
 
 ### Fixed
