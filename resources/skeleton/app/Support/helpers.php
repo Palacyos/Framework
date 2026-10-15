@@ -1,18 +1,6 @@
 <?php
 
-use Palacios\Framework\Csrf;
-use Random\RandomException;
-
-if (!function_exists('csrf_input')) {
-    /**
-     * @throws RandomException
-     */
-    function csrf_input(): string
-    {
-        $token = Csrf::token();
-        return '<input type="hidden" name="_csrf" value="' . htmlspecialchars($token) . '">';
-    }
-}
+declare(strict_types=1);
 
 if (!function_exists('e')) {
     function e(mixed $value): string

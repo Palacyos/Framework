@@ -331,6 +331,8 @@ Inclua o campo oculto em formulários que alteram dados:
 
 O framework valida automaticamente o token nas requisições protegidas. O campo interno `_csrf` não é incluído no model binding, portanto o controller recebe apenas os dados do formulário e não precisa remover o token manualmente.
 
+O próprio helper obtém e reutiliza o token guardado na sessão. Não gere o token no controller nem o envie como dado da view. Se a geração criptograficamente segura falhar, o framework interrompe a operação e o tratamento global devolve `500`; ele nunca renderiza um token vazio nem usa uma alternativa insegura.
+
 ## Autenticação e autorização
 
 Registre os serviços:

@@ -3,20 +3,30 @@
 namespace Palacios\Framework;
 
 use Palacios\Framework\Http\HttpException;
+use Palacios\Framework\Security\Antiforgery\CsrfTokenGenerationException;
 use Random\RandomException;
 
 final class Csrf
 {
-    /**
-     * @throws RandomException
-     */
+    /** @throws CsrfTokenGenerationException */
     public static function token(): string
     {
-        if (!Session::get('_csrf')) {
-            Session::set('_csrf', bin2hex(random_bytes(32)));
+        $storedToken = Session::get('_csrf');
+        if (is_string($storedToken) && $storedToken !== '') {
+            return $storedToken;
         }
-        $token = Session::get('_csrf');
-        assert(is_string($token));
+
+        try {
+            $token = bin2hex(random_bytes(32));
+        } catch (RandomException $exception) {
+            throw new CsrfTokenGenerationException(
+                'Não foi possível gerar um token antiforgery seguro.',
+                0,
+                $exception,
+            );
+        }
+
+        Session::set('_csrf', $token);
         return $token;
     }
 

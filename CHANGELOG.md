@@ -6,6 +6,14 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o 
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-10-15
+
+### Fixed
+
+- `csrf_input()` agora pertence ao pacote e cuida da geração e reutilização do token da sessão sem exigir tratamento nos controllers ou views.
+- Falhas de entropia na geração do token agora interrompem a operação com `CsrfTokenGenerationException`, preservando a `RandomException` original para o tratamento global.
+- O skeleton não declara mais uma segunda função `csrf_input()`, eliminando a ambiguidade que fazia o PhpStorm herdar incorretamente o `@throws RandomException` do arquivo em `vendor`.
+
 ## [0.1.4] - 2026-10-15
 
 ### Fixed

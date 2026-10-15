@@ -33,9 +33,14 @@ final class CliTest extends TestCase
 
         $project = $this->temporaryDirectory . '/Blog';
         self::assertFileExists($project . '/bootstrap/app.php');
+        self::assertFileExists($project . '/app/Support/helpers.php');
         self::assertFileExists($project . '/.env');
         self::assertDirectoryDoesNotExist($project . '/vendor');
         self::assertStringContainsString('APP_KEY=base64:', (string) file_get_contents($project . '/.env'));
+
+        $helpers = (string) file_get_contents($project . '/app/Support/helpers.php');
+        self::assertStringNotContainsString('function csrf_input', $helpers);
+        self::assertStringNotContainsString('RandomException', $helpers);
 
         $composer = json_decode((string) file_get_contents($project . '/composer.json'), true, 512, JSON_THROW_ON_ERROR);
         self::assertArrayNotHasKey('repositories', $composer);
